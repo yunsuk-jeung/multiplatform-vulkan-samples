@@ -13,7 +13,12 @@ Instance::Instance(const char *app_name) {
   vk::InstanceCreateFlags flags{};
 
 #ifdef __APPLE__
-  // MoltenVK
+  // MoltenVK is a non-conformant "portability" driver. Since Vulkan 1.3.216
+  // the loader hides such drivers unless we opt in via the portability
+  // enumeration extension + flag, otherwise createInstance fails with
+  // VK_ERROR_INCOMPATIBLE_DRIVER.
+  extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+  flags |= vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
 #endif
 
   vk::InstanceCreateInfo create_info{};

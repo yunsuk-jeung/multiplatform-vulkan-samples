@@ -36,51 +36,80 @@ fetch() {
 OS="$(uname -s)"
 
 case "$OS" in
-  Darwin)
-    cat <<'EOF'
-[setup] macOS detected.
-
-The Vulkan SDK for macOS ships as a .dmg installer (it bundles MoltenVK), not a
-tarball, so this script cannot silently unpack it. Do one of:
-
-  1. Download the installer from https://vulkan.lunarg.com/sdk/home#mac
-  2. Or via Homebrew:  brew install --cask vulkan-sdk
-
-Then set VULKAN_SDK (the installer/cask does this for you), e.g.:
-  export VULKAN_SDK="$HOME/VulkanSDK/<version>/macOS"
-EOF
-    exit 0
-    ;;
-  Linux) : ;;
-  *) die "unsupported OS: $OS (this script handles Linux tarballs; use the LunarG installer on Windows/macOS)" ;;
+  Darwin) : ;;
+  Linux)  : ;;
+  *) die "unsupported OS: $OS" ;;
 esac
 
-ARCH="$(uname -m)"
-[ "$ARCH" = "x86_64" ] || die "LunarG Linux SDK tarball only targets x86_64 (got: $ARCH)"
-
-# --- download ---------------------------------------------------------------
 mkdir -p "$INSTALL_DIR"
-TMP_TARBALL="$(mktemp "${TMPDIR:-/tmp}/vulkan-sdk.XXXXXX.tar.xz")"
-trap 'rm -f "$TMP_TARBALL"' EXIT
 
-if [ "$VERSION" = "latest" ]; then
-  URL="https://sdk.lunarg.com/sdk/download/latest/linux/vulkan-sdk.tar.xz"
+if [ "$OS" = "Darwin" ]; then
+  # --- macOS ----------------------------------------------------------------
+  # The macOS SDK ships as a .zip containing a single Qt Installer Framework
+  # installer app (it bundles MoltenVK). We download it and drive its headless
+  # CLI to install locally into $INSTALL_DIR/<version> (no root, no /Applications),
+  # so the layout matches Linux: $INSTALL_DIR/<version>/setup-env.sh.
+  TMP_ZIP="$(mktemp "${TMPDIR:-/tmp}/vulkan-sdk.XXXXXX.zip")"
+  TMP_EXTRACT="$(mktemp -d "${TMPDIR:-/tmp}/vulkan-sdk-extract.XXXXXX")"
+  trap 'rm -rf "$TMP_ZIP" "$TMP_EXTRACT"' EXIT
+
+  if [ "$VERSION" = "latest" ]; then
+    URL="https://sdk.lunarg.com/sdk/download/latest/mac/vulkan-sdk.zip"
+  else
+    URL="https://sdk.lunarg.com/sdk/download/${VERSION}/mac/vulkansdk-macos-${VERSION}.zip"
+  fi
+
+  log "downloading Vulkan SDK ($VERSION) from:"
+  log "  $URL"
+  fetch "$URL" "$TMP_ZIP"
+
+  log "unpacking installer"
+  unzip -q "$TMP_ZIP" -d "$TMP_EXTRACT"
+
+  # The zip contains one installer app: vulkansdk-macOS-<version>.app
+  INSTALLER_APP="$(find "$TMP_EXTRACT" -maxdepth 1 -type d -name '*.app' | head -n1)"
+  [ -n "$INSTALLER_APP" ] || die "could not find the installer .app inside the downloaded zip"
+  INSTALLER_BIN="$INSTALLER_APP/Contents/MacOS/$(basename "${INSTALLER_APP%.app}")"
+  [ -x "$INSTALLER_BIN" ] || die "installer binary not found at $INSTALLER_BIN"
+
+  # Derive the version from the app name (e.g. vulkansdk-macOS-1.4.350.1.app).
+  SDK_VERSION="$(basename "${INSTALLER_APP%.app}" | sed -E 's/^.*-([0-9][0-9.]*)$/\1/')"
+  [ -n "$SDK_VERSION" ] || die "could not parse SDK version from $INSTALLER_APP"
+  SDK_DIR="$INSTALL_DIR/$SDK_VERSION"
+
+  log "installing into $SDK_DIR (headless, no root)"
+  mkdir -p "$SDK_DIR"
+  # --default-answer / --accept-licenses / --confirm-command make it non-interactive.
+  "$INSTALLER_BIN" --root "$SDK_DIR" \
+    --accept-licenses --default-answer --confirm-command install
+
+  [ -f "$SDK_DIR/setup-env.sh" ] || die "setup-env.sh not found in $SDK_DIR after install"
 else
-  URL="https://sdk.lunarg.com/sdk/download/${VERSION}/linux/vulkansdk-linux-x86_64-${VERSION}.tar.xz"
+  # --- Linux ----------------------------------------------------------------
+  ARCH="$(uname -m)"
+  [ "$ARCH" = "x86_64" ] || die "LunarG Linux SDK tarball only targets x86_64 (got: $ARCH)"
+
+  TMP_TARBALL="$(mktemp "${TMPDIR:-/tmp}/vulkan-sdk.XXXXXX.tar.xz")"
+  trap 'rm -f "$TMP_TARBALL"' EXIT
+
+  if [ "$VERSION" = "latest" ]; then
+    URL="https://sdk.lunarg.com/sdk/download/latest/linux/vulkan-sdk.tar.xz"
+  else
+    URL="https://sdk.lunarg.com/sdk/download/${VERSION}/linux/vulkansdk-linux-x86_64-${VERSION}.tar.xz"
+  fi
+
+  log "downloading Vulkan SDK ($VERSION) from:"
+  log "  $URL"
+  fetch "$URL" "$TMP_TARBALL"
+
+  log "extracting into $INSTALL_DIR"
+  tar -xf "$TMP_TARBALL" -C "$INSTALL_DIR"
+
+  # The tarball's top-level entry is the version directory (e.g. 1.4.313.0/).
+  SDK_DIR="$(find "$INSTALL_DIR" -maxdepth 1 -mindepth 1 -type d -name '1.*' | sort -V | tail -n1)"
+  [ -n "$SDK_DIR" ] || die "could not locate the unpacked SDK directory under $INSTALL_DIR"
+  [ -f "$SDK_DIR/setup-env.sh" ] || die "setup-env.sh not found in $SDK_DIR"
 fi
-
-log "downloading Vulkan SDK ($VERSION) from:"
-log "  $URL"
-fetch "$URL" "$TMP_TARBALL"
-
-# --- extract ----------------------------------------------------------------
-log "extracting into $INSTALL_DIR"
-tar -xf "$TMP_TARBALL" -C "$INSTALL_DIR"
-
-# The tarball's top-level entry is the version directory (e.g. 1.4.313.0/).
-SDK_DIR="$(find "$INSTALL_DIR" -maxdepth 1 -mindepth 1 -type d -name '1.*' | sort -V | tail -n1)"
-[ -n "$SDK_DIR" ] || die "could not locate the unpacked SDK directory under $INSTALL_DIR"
-[ -f "$SDK_DIR/setup-env.sh" ] || die "setup-env.sh not found in $SDK_DIR"
 
 # --- report -----------------------------------------------------------------
 log "Vulkan SDK ready at: $SDK_DIR"
@@ -89,13 +118,26 @@ cat <<EOF
 Activate it in your current shell:
   source "$SDK_DIR/setup-env.sh"
 
-That exports VULKAN_SDK / PATH / LD_LIBRARY_PATH so CMake's find_package(Vulkan)
-and the shader compilers (glslangValidator, glslc, dxc) are picked up.
+That exports VULKAN_SDK / PATH and the loader/ICD paths so CMake's
+find_package(Vulkan) and the shader compilers (glslangValidator, glslc, dxc)
+are picked up.
 
 Then build:
   cmake -S "$REPO_ROOT" -B "$REPO_ROOT/build"
   cmake --build "$REPO_ROOT/build"
 
+Tip: this repo's .envrc auto-sources the highest installed SDK on cd (run
+'direnv allow' once), so you usually don't need to source it by hand.
+EOF
+
+if [ "$OS" = "Linux" ]; then
+  cat <<'EOF'
 Note: if this machine has no GPU driver, install a software renderer to get a
 usable device:  sudo apt install -y mesa-vulkan-drivers
 EOF
+else
+  cat <<'EOF'
+Note: on macOS the SDK bundles MoltenVK (Vulkan-over-Metal); the ICD is wired up
+by setup-env.sh via VK_ICD_FILENAMES / VK_DRIVER_FILES.
+EOF
+fi
