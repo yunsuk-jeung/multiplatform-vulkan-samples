@@ -4,7 +4,7 @@ find_package(Vulkan REQUIRED)
 
 # --- mpvk: the shared framework library every sample links against ----------
 add_library(mpvk
-    src/instance.cpp)
+  src/instance.cpp)
 target_include_directories(mpvk PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(mpvk PUBLIC Vulkan::Vulkan)
 add_library(mpvk::mpvk ALIAS mpvk)

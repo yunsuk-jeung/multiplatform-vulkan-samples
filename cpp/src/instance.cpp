@@ -1,16 +1,15 @@
-#include "mpvk/instance.hpp"
-
 #include <vector>
 
+#include "mpvk/instance.hpp"
 namespace mpvk {
 
-Instance::Instance(const char *app_name) {
+Instance::Instance(const char* app_name) {
   vk::ApplicationInfo app_info{};
   app_info.pApplicationName = app_name;
-  app_info.apiVersion = VK_API_VERSION_1_4;
+  app_info.apiVersion       = VK_API_VERSION_1_4;
 
-  std::vector<const char *> extensions;
-  vk::InstanceCreateFlags flags{};
+  std::vector<const char*> extensions;
+  vk::InstanceCreateFlags  flags{};
 
 #ifdef __APPLE__
   // MoltenVK is a non-conformant "portability" driver. Since Vulkan 1.3.216
@@ -22,7 +21,7 @@ Instance::Instance(const char *app_name) {
 #endif
 
   vk::InstanceCreateInfo create_info{};
-  create_info.flags = flags;
+  create_info.flags            = flags;
   create_info.pApplicationInfo = &app_info;
   create_info.setPEnabledExtensionNames(extensions);
 
@@ -39,4 +38,4 @@ std::vector<vk::PhysicalDevice> Instance::physical_devices() const {
   return instance_.enumeratePhysicalDevices();
 }
 
-} // namespace mpvk
+}  // namespace mpvk

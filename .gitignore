@@ -1,3 +1,4 @@
+.cache/
 # Build output
 /build/
 build*/
