@@ -14,6 +14,12 @@ Khronos처럼 거대한 프레임워크를 먼저 만들지 않는다. 대신
 - [progress.md](progress.md) — 진행 로그(저널). 작업할 때마다 여기에 기록한다.
 - [concepts.md](concepts.md) — Vulkan 개념 인덱스. 각 개념이 어느 샘플에서
   처음 등장하는지 링크로 연결한다.
+- [samples/](samples/) — **샘플별 개념 정리**. 한 샘플 = 한 md 파일.
+  - [01_device_info](samples/01_device_info.md) — instance, physical device 열거 ✅
+  - [02_logical_device](samples/02_logical_device.md) — logical device, queue family ⬜
+
+새 샘플을 시작하면 `samples/NN_name.md`를 만들어 개념을 먼저 정리하고,
+구현하면서 채워 넣는다.
 
 ## 구조
 

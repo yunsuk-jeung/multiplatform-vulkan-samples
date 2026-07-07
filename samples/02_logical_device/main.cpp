@@ -1,8 +1,8 @@
-
 #include <cstdio>
 
+#include <vulkan/vulkan.hpp>
+
 #include "mpvk/instance.hpp"
-#include "vulkan/vulkan.hpp"
 
 int main() {
   mpvk::Instance instance("01_device_info");
