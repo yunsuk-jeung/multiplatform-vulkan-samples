@@ -152,3 +152,123 @@ Instance 생성
 - `physical_device.hpp` / `device.hpp` 헤더
 - `Device` 소멸자(파괴 순서/소유권이 드러나는 부분)
 - `main.cpp`에서 device 생성 + 큐 획득 부분
+
+---
+
+## 구현 가이드 (직접 해보기)
+
+> 답안 복붙이 아니라, 순서·API·함정만 짚는다. 몸통은 직접 채운다.
+> 막히면 각 단계의 "쓸 API" 힌트를 보고 `vulkan.hpp` 문서를 찾아보자.
+
+### Step 1 — `cpp/include/mpvk/physical_device.hpp`
+
+만들 것: `mpvk::PhysicalDevice` 클래스.
+
+- 멤버: `vk::PhysicalDevice handle_;`, `uint32_t graphics_family_;`
+- 생성자: `explicit PhysicalDevice(const Instance& instance);`
+  - 이 안에서 "적합한 GPU 고르기 + graphics family 찾기"를 한다.
+- 접근자(전부 `const`, 인라인): `handle()`, `graphics_family()`
+- 부가로 GPU 이름 출력을 위해 `properties()` 또는 `name()` 하나 있으면 편함
+  → `handle_.getProperties()` 를 그때그때 불러도 됨.
+- `#include <mpvk/instance.hpp>` 필요 (생성자 인자 타입).
+
+> 복사 금지(`= delete`)는 이 클래스엔 굳이 안 걸어도 됨 — 소유하는 리소스가
+> 없고(그냥 핸들 값) 그래서 복사돼도 안전. `Instance`/`Device`와 다른 점.
+
+### Step 2 — `cpp/src/physical_device.cpp`
+
+선택 알고리즘 (생성자 몸통):
+
+1. `instance.physical_devices()` 로 후보 목록을 받는다.
+2. 각 후보 `pd`에 대해:
+   - `auto families = pd.getQueueFamilyProperties();` → `std::vector<vk::QueueFamilyProperties>`
+   - 인덱스 `i`를 돌며 `families[i].queueFlags & vk::QueueFlagBits::eGraphics` 가
+     참인 첫 family를 찾는다.
+   - 찾으면 `handle_ = pd; graphics_family_ = i;` 저장하고 종료.
+3. 하나도 못 찾으면 예외 (`throw std::runtime_error(...)`).
+
+> `queueFlags & eGraphics` 는 `vk::QueueFlags` (비트마스크 래퍼)를 돌려준다.
+> `if (flags & bit)` 형태로 bool 판정 가능. 명시적으로 하려면
+> `(families[i].queueFlags & vk::QueueFlagBits::eGraphics) ? ... `.
+
+> 지금은 "graphics 있는 첫 GPU"면 충분. 나중에 discrete 우선 점수제로 확장.
+
+### Step 3 — `cpp/include/mpvk/device.hpp`
+
+만들 것: `mpvk::Device` 클래스.
+
+- 멤버: `vk::Device device_;`, `vk::Queue graphics_queue_;`, `uint32_t graphics_family_;`
+- 생성자: `explicit Device(const PhysicalDevice& gpu);`
+- 소멸자: `~Device();` (몸통은 .cpp에서 `device_.destroy()`)
+- 복사 금지 (`Instance`와 동일한 이유 — 유일 소유).
+- 접근자: `handle()`, `graphics_queue()`, `graphics_family()`.
+- `#include <mpvk/physical_device.hpp>`.
+
+### Step 4 — `cpp/src/device.cpp`
+
+생성자 몸통 순서:
+
+1. **queue create info** 구성. 함정: priority 필수.
+   ```cpp
+   float priority = 1.0f;
+   vk::DeviceQueueCreateInfo queue_info{};
+   queue_info.queueFamilyIndex = gpu.graphics_family();
+   queue_info.setQueuePriorities(priority);   // count=1, ptr=&priority 자동
+   ```
+2. **device extension** 목록 구성. macOS 함정: portability_subset.
+   - `gpu.handle().enumerateDeviceExtensionProperties()` 로 지원 목록을 받고,
+   - 그 안에 `VK_KHR_portability_subset` (`"VK_KHR_portability_subset"`, 매크로는
+     `VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME`) 가 **있으면** extensions에 추가.
+   - 없는데 넣으면 device 생성 실패하니, "있을 때만" 이 핵심.
+3. **`vk::DeviceCreateInfo`** 구성:
+   ```cpp
+   vk::DeviceCreateInfo create_info{};
+   create_info.setQueueCreateInfos(queue_info);          // 배열/단일 다 받음
+   create_info.setPEnabledExtensionNames(extensions);
+   // (features는 지금 불필요 → 생략)
+   ```
+4. `device_ = gpu.handle().createDevice(create_info);`
+5. `graphics_family_ = gpu.graphics_family();`
+6. `graphics_queue_ = device_.getQueue(graphics_family_, 0);`  // 0번째 큐
+
+소멸자: `if (device_) device_.destroy();`
+
+### Step 5 — CMake 등록
+
+- `cpp/CMakeLists.txt` 의 `add_library(mpvk ...)` 소스 목록에
+  `src/physical_device.cpp`, `src/device.cpp` 추가.
+- `samples/CMakeLists.txt` 에 `add_subdirectory(02_logical_device)` 추가.
+- `samples/02_logical_device/CMakeLists.txt` 신규 작성
+  (01 것을 참고: `add_executable` + `target_link_libraries(... mpvk::mpvk)`).
+
+### Step 6 — `samples/02_logical_device/main.cpp`
+
+흐름:
+```cpp
+mpvk::Instance   instance("02_logical_device");
+mpvk::PhysicalDevice gpu(instance);      // GPU 선택
+mpvk::Device     device(gpu);            // logical device + queue
+
+// 출력: gpu 이름, gpu.graphics_family(), device.graphics_queue() 유효성
+```
+- queue가 유효한지: `vk::Queue`는 `bool` 변환/`!= nullptr` 로 확인 가능
+  (`if (device.graphics_queue())`).
+
+### Step 7 — 빌드 & 검증
+```bash
+cmake --preset debug            # 새 파일 인식시키려면 재구성
+cmake --build --preset debug
+./build/debug/samples/02_logical_device/02_logical_device
+```
+기대 출력 예:
+```
+Selected GPU: Apple M_ (graphics family = 0)
+Logical device created. Graphics queue: OK
+```
+
+### 흔한 에러
+- **`VK_ERROR_EXTENSION_NOT_PRESENT`**: portability_subset를 지원 확인 없이
+  넣었을 때. Step 4-2의 "있을 때만" 확인.
+- **validation: priority 누락**: Step 4-1 확인.
+- **링크 에러(undefined symbol)**: CMake 소스 목록에 .cpp 추가 빠짐 (Step 5).
+- **재구성 안 됨**: 새 CMake 파일/타깃은 `cmake --preset debug` 를 다시 돌려야 인식.
