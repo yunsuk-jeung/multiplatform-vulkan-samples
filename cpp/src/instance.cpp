@@ -32,6 +32,7 @@ Instance::~Instance() {
   if (handle_) {
     handle_.destroy();
   }
+  handle_ = nullptr;
 }
 
 std::vector<vk::PhysicalDevice> Instance::physical_devices() const {

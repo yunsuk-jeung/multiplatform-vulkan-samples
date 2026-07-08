@@ -25,6 +25,32 @@
 macOS에서 MoltenVK를 통해 Vulkan을 쓰려면 portability 확장을 opt-in 해야 한다.
 - 처음 등장: [01_device_info](roadmap.md#-01_device_info)
 
+## Phase 1 — 디바이스와 큐
+
+### Logical device (`VkDevice`)
+고른 GPU에 대한 "내 세션". 쓸 기능/확장/큐를 골라 생성하며, 이후 거의 모든
+Vulkan 객체의 부모다. Physical device는 열거해 얻지만 logical device는 생성한다.
+- 처음 등장: [02_logical_device](samples/02_logical_device.md)
+- 관련: [01_device_info](roadmap.md#-01_device_info) (physical device 열거)
+
+### Queue와 queue family
+GPU에 일을 시키는 유일한 통로(command buffer → queue submit). 처리 종류
+(graphics/compute/transfer)가 같은 큐들이 family로 묶인다. 원하는 비트를 가진
+family index를 찾아 device 생성 시 요청하고, 생성 후 `getQueue`로 핸들을 얻는다.
+- 처음 등장: [02_logical_device](samples/02_logical_device.md)
+
+### Device extension opt-in (지원 확인 후 활성화)
+확장은 `enumerateDeviceExtensionProperties()`로 지원 여부를 확인한 뒤,
+지원할 때만 `DeviceCreateInfo`에 이름을 넘겨 켠다. macOS(MoltenVK)에선
+`VK_KHR_portability_subset`가 이 규칙의 대표 사례(있으면 반드시 켬).
+- 처음 등장: [02_logical_device](samples/02_logical_device.md)
+- 관련: [01_device_info](roadmap.md#-01_device_info) (instance 레벨 portability)
+
+### 객체 소유권과 파괴 순서 (RAII)
+자식 객체는 부모보다 먼저 파괴돼야 한다(device는 instance보다 먼저). RAII
+소멸자 + 복사 금지로 유일 소유를 강제하고, 선언 순서로 파괴 역순을 보장한다.
+- 처음 등장: [02_logical_device](samples/02_logical_device.md)
+
 <!--
 새 항목 템플릿:
 

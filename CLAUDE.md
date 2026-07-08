@@ -292,6 +292,27 @@ until a sample truly requires it.
 
 * contains the actual per-sample teaching notes and implementation plan
 
+### Important rule: reinforce implementation steps as work progresses
+
+Do not treat the sample doc as write-once. At **every** progress milestone
+within a sample (a wrapper finished, a step reviewed, a bug fixed, a decision
+made), go back and **augment the relevant `## Implementation steps` / 구현 가이드
+section** of `docs/samples/NN_sample_name.md` so it reflects what was actually
+learned.
+
+Concretely, when guiding or reviewing a step:
+
+* refine the step with anything that was non-obvious in practice (the exact API,
+  the gotcha hit, why a choice was made) — the doc should read like the
+  distilled version of what we just did
+* mark completed steps (e.g. ✅) so the doc doubles as progress within the sample
+* keep the "직접 해보기" guidance intact — reinforce, do not replace it with the
+  final answer. Add clarifying notes, not full copy-paste solutions.
+* record fixes/decisions that belong to the *whole sample* in `docs/progress.md`,
+  but the *per-step how/why* stays in the sample doc
+
+Do this incrementally per step, not only when the sample is fully done.
+
 `docs/concepts.md` (concept index):
 
 * a concept-first index of every Vulkan concept introduced so far

@@ -23,7 +23,7 @@
 
 ## Phase 1 — 디바이스와 큐 (Device & Queues)
 
-### ⬜ [02_logical_device](samples/02_logical_device.md)
+### ✅ [02_logical_device](samples/02_logical_device.md)
 - **개념**: queue family(그래픽/컴퓨트/전송)의 의미, 원하는 큐를 가진 physical device
   고르기, logical device(`VkDevice`) 생성, device에서 queue 얻기,
   device extension / feature 활성화.

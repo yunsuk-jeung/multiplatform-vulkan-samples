@@ -1,6 +1,10 @@
 # 02_logical_device
 
-> Phase 1 · 상태: ⬜ 예정
+> Phase 1 · 상태: ✅ 완료 (PhysicalDevice ✅ / Device ✅, 정상 실행 확인)
+>
+> ⚠️ 주의: 이 샘플을 검증할 때 **validation layer는 실제로 켜져 있지 않았다**
+> (Instance가 아직 레이어/​debug messenger를 활성화하지 않음). "경고 0개"는
+> 검증기가 안 돌았다는 뜻이지 "검증 통과"가 아니다. → 아래 "다음에 할 일" 참고.
 
 ## Goal
 
@@ -160,7 +164,7 @@ Instance 생성
 > 답안 복붙이 아니라, 순서·API·함정만 짚는다. 몸통은 직접 채운다.
 > 막히면 각 단계의 "쓸 API" 힌트를 보고 `vulkan.hpp` 문서를 찾아보자.
 
-### Step 1 — `cpp/include/mpvk/physical_device.hpp`
+### Step 1 — `cpp/include/mpvk/physical_device.hpp` ✅
 
 만들 것: `mpvk::PhysicalDevice` 클래스.
 
@@ -175,7 +179,14 @@ Instance 생성
 > 복사 금지(`= delete`)는 이 클래스엔 굳이 안 걸어도 됨 — 소유하는 리소스가
 > 없고(그냥 핸들 값) 그래서 복사돼도 안전. `Instance`/`Device`와 다른 점.
 
-### Step 2 — `cpp/src/physical_device.cpp`
+> **실전 노트 (구현 후 확정)**
+> - 멤버 기본값은 `vk::PhysicalDevice handle_{nullptr};`, `uint32_t graphics_family_{0};`
+>   로 in-class 초기화. 접근자는 인라인 `const`.
+> - `#include <cstdint>` (uint32_t) 필요. `vk::` 타입은 `mpvk/instance.hpp`가
+>   끌어오는 `<vulkan/vulkan.hpp>`로 간접 포함되지만, cpp에서 직접 쓰면
+>   IWYU상 직접 include가 더 안전.
+
+### Step 2 — `cpp/src/physical_device.cpp` ✅
 
 선택 알고리즘 (생성자 몸통):
 
@@ -193,7 +204,16 @@ Instance 생성
 
 > 지금은 "graphics 있는 첫 GPU"면 충분. 나중에 discrete 우선 점수제로 확장.
 
-### Step 3 — `cpp/include/mpvk/device.hpp`
+> **실전 노트 (구현 후 확정)**
+> - **이중 루프 탈출은 `return`으로.** 적합 family를 찾으면 `handle_`/
+>   `graphics_family_` 저장 후 즉시 `return;` → 안쪽/바깥 루프를 한 번에 빠져나온다.
+>   `break` 하나로는 바깥 루프가 계속 돌아 다른 GPU까지 훑는 버그가 났었다.
+> - **루프 인덱스는 `uint32_t`.** `size()`는 `size_t`이고 `graphics_family_`도
+>   `uint32_t`라, `int i`로 돌면 `-Wsign-compare` 경고 + 타입 불일치. `for (uint32_t i ...)`.
+> - 못 찾으면 `throw std::runtime_error(...)` → `<stdexcept>` 포함. main에서는
+>   `catch (const std::exception&)` (값 catch는 slicing).
+
+### Step 3 — `cpp/include/mpvk/device.hpp` ✅
 
 만들 것: `mpvk::Device` 클래스.
 
@@ -204,7 +224,19 @@ Instance 생성
 - 접근자: `handle()`, `graphics_queue()`, `graphics_family()`.
 - `#include <mpvk/physical_device.hpp>`.
 
-### Step 4 — `cpp/src/device.cpp`
+> **실전 노트 (구현 후 확정) — 전방 선언 vs 참조/포인터**
+> - 생성자 인자는 **`const PhysicalDevice&`(참조)** 로. non-owning + null 불가인
+>   필수 의존이라 참조가 의도에 맞다. 포인터는 "null 가능"을 암시해 부적절.
+> - **오해 주의:** "전방 선언하려면 포인터여야 한다"는 틀렸다. 함수 매개변수는
+>   참조든 포인터든 **불완전 타입(전방 선언만)으로 선언 가능**하다. 완전 정의가
+>   필요한 건 값 멤버(`Foo f_;`)·`sizeof`·멤버 접근뿐이고, 멤버 접근은 `.cpp`에서
+>   헤더를 include 하면 해결된다.
+> - 그래서 헤더는 `#include`를 하지 말고 **`class PhysicalDevice;` 전방 선언만**
+>   두면 결합도가 낮아진다. 단 전방 선언 *줄 자체는 반드시 있어야* 한다 —
+>   빼면 `unknown type name 'PhysicalDevice'`(→ `vk::PhysicalDevice` 오해) 에러.
+> - `uint32_t` 때문에 `<cstdint>`가 필요하나 `<vulkan/vulkan.hpp>`로 간접 포함됨.
+
+### Step 4 — `cpp/src/device.cpp` ✅
 
 생성자 몸통 순서:
 
@@ -217,9 +249,19 @@ Instance 생성
    ```
 2. **device extension** 목록 구성. macOS 함정: portability_subset.
    - `gpu.handle().enumerateDeviceExtensionProperties()` 로 지원 목록을 받고,
-   - 그 안에 `VK_KHR_portability_subset` (`"VK_KHR_portability_subset"`, 매크로는
-     `VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME`) 가 **있으면** extensions에 추가.
-   - 없는데 넣으면 device 생성 실패하니, "있을 때만" 이 핵심.
+   - 그 안에 `"VK_KHR_portability_subset"` 가 **있으면** extensions에 추가.
+   - 없는데 넣으면 device 생성 실패(`VK_ERROR_EXTENSION_NOT_PRESENT`),
+     있는데 안 넣으면 MoltenVK에서 validation VUID 에러 → "있을 때만"이 핵심.
+   - **함정: 매크로 `VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME`는 기본 include로
+     안 보인다.** 이 상수는 `vulkan_beta.h`에 있고 `VK_ENABLE_BETA_EXTENSIONS`
+     게이트 뒤에 있어서, `#include <vulkan/vulkan.hpp>`만으로는 심볼을 못 찾는다.
+     런타임 확장이 beta인 게 아니라 *C 매크로 상수만* beta 헤더에 있는 것.
+   - 해결: **매크로 대신 문자열 리터럴 `"VK_KHR_portability_subset"`를 직접 사용.**
+     beta 헤더 의존이 없어 3개 플랫폼에서 그대로 컴파일된다. (매크로를 굳이 쓰려면
+     vulkan include 전에 `#define VK_ENABLE_BETA_EXTENSIONS` 해야 하지만, 다른
+     beta 확장 심볼까지 열려서 학습 프로젝트엔 비권장.)
+   - 비교는 `ext.extensionName`(C 문자열)이라 `==`가 아니라 `std::strcmp(...) == 0`
+     (`<cstring>` 필요).
 3. **`vk::DeviceCreateInfo`** 구성:
    ```cpp
    vk::DeviceCreateInfo create_info{};
@@ -233,7 +275,18 @@ Instance 생성
 
 소멸자: `if (device_) device_.destroy();`
 
-### Step 5 — CMake 등록
+> **실전 노트 (구현 후 확정)**
+> - **`std::pmr::vector` 오타 주의.** extensions는 평범한 `std::vector<const char*>`.
+>   자동완성으로 `std::pmr::vector`가 튀어나오기 쉬운데 별개 타입(PMR 할당자)이다.
+> - **`#ifdef __APPLE__` 게이트는 불필요.** "지원 목록에 있을 때만 추가" 쿼리가
+>   플랫폼 차이를 스스로 흡수한다(portability_subset은 MoltenVK에만 존재 →
+>   Linux/Windows 쿼리엔 안 나옴). 플랫폼 매크로 하드코딩은 멀티플랫폼 정책상
+>   피하는 게 낫다 — **항상 쿼리**하도록 두면 self-adjusting.
+> - `std::strcmp` → `#include <cstring>` 직접 포함(IWYU).
+> - `constexpr float priority`는 명명된 lvalue라 `setQueuePriorities(priority)`에
+>   안전(임시 아님 → dangling 없음).
+
+### Step 5 — CMake 등록 ✅
 
 - `cpp/CMakeLists.txt` 의 `add_library(mpvk ...)` 소스 목록에
   `src/physical_device.cpp`, `src/device.cpp` 추가.
@@ -241,7 +294,7 @@ Instance 생성
 - `samples/02_logical_device/CMakeLists.txt` 신규 작성
   (01 것을 참고: `add_executable` + `target_link_libraries(... mpvk::mpvk)`).
 
-### Step 6 — `samples/02_logical_device/main.cpp`
+### Step 6 — `samples/02_logical_device/main.cpp` ✅
 
 흐름:
 ```cpp
@@ -254,7 +307,7 @@ mpvk::Device     device(gpu);            // logical device + queue
 - queue가 유효한지: `vk::Queue`는 `bool` 변환/`!= nullptr` 로 확인 가능
   (`if (device.graphics_queue())`).
 
-### Step 7 — 빌드 & 검증
+### Step 7 — 빌드 & 검증 ✅
 ```bash
 cmake --preset debug            # 새 파일 인식시키려면 재구성
 cmake --build --preset debug
@@ -272,3 +325,23 @@ Logical device created. Graphics queue: OK
 - **validation: priority 누락**: Step 4-1 확인.
 - **링크 에러(undefined symbol)**: CMake 소스 목록에 .cpp 추가 빠짐 (Step 5).
 - **재구성 안 됨**: 새 CMake 파일/타깃은 `cmake --preset debug` 를 다시 돌려야 인식.
+- **`unknown type name 'PhysicalDevice'`**: device.hpp에 `class PhysicalDevice;`
+  전방 선언 줄이 빠짐 (참조 인자라도 이름 선언은 필요).
+
+---
+
+## 다음에 할 일 (후속 · 아직 안 함)
+
+> 오늘은 여기까지. 다음 세션 시작점.
+
+1. **[우선] Instance에 validation layer + debug messenger 추가** — sample 03 들어가기 **전에**.
+   - 디버그 빌드에서만 `VK_LAYER_KHRONOS_validation` 레이어 enable (지원 확인 후 opt-in)
+   - `VK_EXT_debug_utils` 확장 + debug messenger 콜백으로 검증 메시지 수신/출력
+   - release 빌드에선 생략
+   - 완료 후 이 샘플을 **실제 validation 켠 상태로 다시 실행**해서 경고 0개 재확인
+     (현재 상단 ⚠️ 주의 해소). concepts.md에 "validation layer / debug messenger" 항목 추가.
+2. **그다음 sample 03 (`03_window_surface`)** — GLFW 창 + `VkSurfaceKHR` + present queue.
+
+### 남은 소소한 정리 (선택)
+- main.cpp의 `"wtf %s"` 에러 메시지 → 개행 포함 + 설명적 문구로.
+- device.cpp 소멸자의 `handle_ = nullptr;` 는 불필요(무해) — 취향껏.
