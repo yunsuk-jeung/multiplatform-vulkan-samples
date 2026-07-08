@@ -292,10 +292,41 @@ until a sample truly requires it.
 
 * contains the actual per-sample teaching notes and implementation plan
 
+`docs/concepts.md` (concept index):
+
+* a concept-first index of every Vulkan concept introduced so far
+* one entry per concept, ordered by when it first appears
+* each entry is short: a one/two-line explanation of the concept plus a link
+  to the sample doc(s) where it is taught — this is a cross-reference, not a
+  place to duplicate the full explanation (that lives in the sample doc)
+* a concept can link to more than one sample (introduced in one, deepened in another)
+* format per entry:
+
+  ```md
+  ### <concept name>
+  <one or two line explanation>
+  - 처음 등장: [NN_sample_name](samples/NN_sample_name.md)
+  - 관련: [MM_other_sample](samples/MM_other_sample.md)
+  ```
+
+### Important rule: whenever a NEW Vulkan concept appears
+
+When a sample introduces a Vulkan concept that is not yet in `docs/concepts.md`:
+
+1. add the full teaching notes to the sample doc (`docs/samples/NN_sample_name.md`) as usual
+2. ALSO add a short entry for that concept to `docs/concepts.md`, linking back to the sample doc
+3. if the concept already exists in the index but is deepened by this sample,
+   append this sample as a "관련" link on the existing entry instead of duplicating it
+
+So each concept is documented in two places with different purposes:
+sample doc = full explanation in context; concept index = short, linkable,
+cross-sample overview. Keep the index minimal — it is a map, not a textbook.
+
 When a sample is completed, update:
 
 * `docs/progress.md`
 * the sample doc
+* `docs/concepts.md` (add/deepen any new concept entries, with sample links)
 * optionally `docs/roadmap.md` status
 
 ## Build Assumptions
@@ -361,9 +392,12 @@ When I say “start sample NN”, do this first:
 1. Inspect the current repo structure from what I provide.
 2. Ask me to create or update `docs/samples/NN_sample_name.md`.
 3. Write the sample instruction document.
-4. Keep implementation steps small.
-5. Tell me what code to write myself.
-6. Review my implementation after I paste it.
+4. Check which of the sample's Vulkan concepts are new (not yet in
+   `docs/concepts.md`) and note that they must be added to the concept index
+   when the sample is done.
+5. Keep implementation steps small.
+6. Tell me what code to write myself.
+7. Review my implementation after I paste it.
 
 Do not jump directly into implementation.
 

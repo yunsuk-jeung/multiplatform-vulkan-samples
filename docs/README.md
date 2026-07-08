@@ -12,6 +12,8 @@ Khronos처럼 거대한 프레임워크를 먼저 만들지 않는다. 대신
 - [roadmap.md](roadmap.md) — 전체 학습 경로. 어떤 순서로, 무엇을 배우고,
   각 단계에서 `mpvk`에 어떤 클래스를 추가하는지.
 - [progress.md](progress.md) — 진행 로그(저널). 작업할 때마다 여기에 기록한다.
+- [concepts.md](concepts.md) — Vulkan 개념 인덱스. 각 개념이 어느 샘플에서
+  처음 등장하는지 링크로 연결한다.
 
 ## 구조
 
