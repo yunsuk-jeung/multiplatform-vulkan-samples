@@ -292,6 +292,18 @@ until a sample truly requires it.
 
 * contains the actual per-sample teaching notes and implementation plan
 
+`NEXT.md` (repo root — the "start here" handoff file):
+
+* a single always-current file holding **only the current starting point**:
+  현재 위치(무엇이 끝났나) + 다음에 할 일(우선순위 순) + 환경 복구 방법.
+* **overwrite it, do not append** — 이전 내용은 지우고 현재 상태만 남긴다.
+  누적 히스토리는 `docs/progress.md`가 담당(둘의 역할이 다르다).
+* update it at the **end of every working session** and whenever the next steps
+  change, so the user can switch machines and immediately see where to resume.
+* keep it short — 한눈에 읽히게. 상세 설명은 sample doc / progress로 링크.
+* it is committed to git; 여러 컴퓨터 동기화는 `git pull`/`git push`에 의존한다.
+* 갱신 시 상단 "마지막 갱신" 날짜도 현재 날짜로 바꾼다.
+
 ### Important rule: reinforce implementation steps as work progresses
 
 Do not treat the sample doc as write-once. At **every** progress milestone
