@@ -14,12 +14,12 @@ public:
   Instance(const Instance&)            = delete;
   Instance& operator=(const Instance&) = delete;
 
-  vk::Instance handle() const { return instance_; }
+  vk::Instance handle() const { return handle_; }
 
   std::vector<vk::PhysicalDevice> physical_devices() const;
 
 private:
-  vk::Instance instance_;
+  vk::Instance handle_;
 };
 
 }  // namespace mpvk

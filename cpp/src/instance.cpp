@@ -25,17 +25,17 @@ Instance::Instance(const char* app_name) {
   create_info.pApplicationInfo = &app_info;
   create_info.setPEnabledExtensionNames(extensions);
 
-  instance_ = vk::createInstance(create_info);
+  handle_ = vk::createInstance(create_info);
 }
 
 Instance::~Instance() {
-  if (instance_) {
-    instance_.destroy();
+  if (handle_) {
+    handle_.destroy();
   }
 }
 
 std::vector<vk::PhysicalDevice> Instance::physical_devices() const {
-  return instance_.enumeratePhysicalDevices();
+  return handle_.enumeratePhysicalDevices();
 }
 
 }  // namespace mpvk
