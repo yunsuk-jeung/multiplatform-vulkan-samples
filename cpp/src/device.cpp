@@ -12,8 +12,8 @@ Device::Device(const PhysicalDevice& gpu) {
   queue_info.setQueueFamilyIndex(gpu.graphics_family());
   queue_info.setQueuePriorities(priority);
 
-  // for mac os
-  constexpr const char* kPortabilitySubset = "VK_KHR_portability_subset";
+  constexpr const char*
+    kPortabilitySubset = "VK_KHR_portability_subset";  // for mac os
 
   std::vector<const char*> extensions;
   auto available = gpu.handle().enumerateDeviceExtensionProperties();

@@ -5,6 +5,12 @@ build*/
 out/
 cmake-build-*/
 
+# external dependencies (installed prefixes + cloned sources)
+libs/
+
+# Runtime logs (mpvk::Logger default sink)
+logs/
+
 # CMake generated / user files
 CMakeCache.txt
 CMakeFiles/
@@ -24,8 +30,9 @@ compile_commands.json
 # Compiled shaders
 *.spv
 
-# Locally-installed Vulkan SDK (see scripts/setup-vulkan-sdk.sh)
-/third_party/vulkan-sdk/
+# Cloned dependency sources + locally-installed Vulkan SDK
+# (third_party is populated by scripts/install_dependencies_*.sh + setup-vulkan-sdk.sh)
+/third_party/
 
 # direnv cache
 .direnv/
