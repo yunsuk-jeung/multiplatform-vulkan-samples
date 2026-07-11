@@ -81,9 +81,8 @@ Instance::Instance(const char* app_name) {
                          | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance;
       info.pfnUserCallback = debug_callback;
 
-      debug_messenger_ = handle_.createDebugUtilsMessengerEXT(info,
-                                                              nullptr,
-                                                              dispatcher_);
+      debug_messenger_ =
+        handle_.createDebugUtilsMessengerEXT(info, nullptr, dispatcher_);
     }
   }
 }

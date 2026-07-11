@@ -237,4 +237,74 @@ GLFW는 **소스에서 빌드**한다 (spdlog와 동일한 `fetch_source` + `bui
 >   루프가 안 끝남. (렌더링 앱은 non-blocking인 `PollEvents`, `WaitEvents` 아님.)
 > - `glfwTerminate()`는 소멸자에서 무조건 호출 → **창 하나 가정**. 여러 창이면 재검토.
 
-> 여기까지 완료. 나머지(surface/present/device 확장)는 Step 3부터 이어서.
+> 여기까지 완료. 아래 Step 3부터 이어서.
+
+### Step 3 — Instance에 surface 확장 병합 ⬜
+
+Surface를 만들려면 instance에 surface 확장(`VK_KHR_surface` + 플랫폼별)이 켜져
+있어야 한다. 그 목록은 GLFW가 알려준다.
+
+**3a. `Window::required_instance_extensions()` 구현**
+```cpp
+// window.cpp
+std::vector<const char*> Window::required_instance_extensions() {
+  uint32_t     count = 0;
+  const char** exts  = glfwGetRequiredInstanceExtensions(&count);   // glfwInit 이후 유효
+  return std::vector<const char*>(exts, exts + count);
+}
+```
+- 헤더에 `#include <vector>` 필요, static 선언 추가.
+- macOS면 보통 `VK_KHR_surface` + `VK_EXT_metal_surface` 를 돌려준다.
+
+**3b. Instance가 그 목록을 받도록 (Window/GLFW에 의존하지 않게 주입)**
+- 생성자에 **기본값 있는 인자**를 추가 → 01/02 호출부(`Instance("...")`)는 그대로 동작:
+  ```cpp
+  // instance.hpp
+  explicit Instance(const char* app_name = "mpvk",
+                    const std::vector<const char*>& extra_extensions = {});
+  ```
+- 생성자 몸통에서 `extensions`에 **합친다**(덮어쓰지 말 것). portability enumeration
+  (`__APPLE__`)과 validation(debug)은 그대로 두고 아래만 추가:
+  ```cpp
+  for (const char* e : extra_extensions) extensions.push_back(e);
+  ```
+
+**3c. main에서 순서 — Window를 Instance보다 먼저**
+```cpp
+mpvk::Window   window(800, 600, "03_window_surface");           // glfwInit 발생
+mpvk::Instance instance("03_window_surface",
+                        mpvk::Window::required_instance_extensions());
+```
+> **함정(닭-달걀):** `glfwGetRequiredInstanceExtensions`는 `glfwInit()` 이후라야
+> 유효하다. `Window` 생성자가 `glfwInit`을 부르므로, **반드시 Window를 먼저** 만든 뒤
+> 그 정적 함수를 호출해 Instance에 넘긴다.
+
+**검증:** 이 상태로 빌드/실행 → 창 뜨고 validation 0개. (아직 Surface는 안 만듦.)
+확장이 빠졌으면 다음 Step 4의 `glfwCreateWindowSurface`에서 실패하므로, 여기선
+"확장을 켠 채로도 instance가 정상 생성"까지만 확인.
+
+### Step 4 — `mpvk::Surface` 구현 ⬜
+- `Surface(const Instance&, const Window&)` 에서
+  `glfwCreateWindowSurface(static_cast<VkInstance>(instance.handle()), window.handle(), nullptr, &raw)`.
+  `VkResult != VK_SUCCESS`면 throw. `raw`(VkSurfaceKHR) → `vk::SurfaceKHR` 대입.
+- `vk::Instance`를 멤버로 보관 → 소멸자에서 `instance_.destroySurfaceKHR(surface_)`.
+- 헤더는 `class Instance; class Window;` 전방 선언만(참조 인자), 복사 금지.
+- **파괴 순서:** main 선언 순서를 `Instance → Window → Surface` 로 두면 소멸 역순으로
+  Surface가 Instance보다 먼저 죽는다. (surface→instance 규칙 준수)
+
+### Step 5 — PhysicalDevice에 present family ⬜
+- 이제 `PhysicalDevice`가 surface도 받아 **present family**를 찾는다:
+  `physical.getSurfaceSupportKHR(i, surface)` 가 true인 family index.
+- 보관: `graphics_family_`, `present_family_`. 선택 기준: 둘 다 존재하는 GPU.
+- graphics와 같을 수도/다를 수도 → 하드코딩 금지.
+
+### Step 6 — Device에 present queue ⬜
+- 두 family가 **같으면** `DeviceQueueCreateInfo` 1개, **다르면** 2개(중복 index 제거).
+- 생성 후 `getQueue`로 present queue 핸들 확보.
+
+### Step 7 — surface 지원 질의 출력 ⬜
+- `getSurfaceCapabilitiesKHR`, `getSurfaceFormatsKHR`, `getSurfacePresentModesKHR`
+  개수/요약을 로그로. (04 swapchain에서 실제 사용)
+
+### Step 8 — main 전체 연결 ⬜
+- `Window → Instance → Surface → PhysicalDevice(surface) → Device` + validation 0개 확인.

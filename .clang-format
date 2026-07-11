@@ -58,7 +58,7 @@ NamespaceIndentation: None
 ObjCBlockIndentWidth: 2
 ObjCSpaceAfterProperty: false
 ObjCSpaceBeforeProtocolList: false
-PenaltyBreakAssignment: 400
+PenaltyBreakAssignment: 30
 PenaltyBreakBeforeFirstCallParameter: 400
 PenaltyReturnTypeOnItsOwnLine: 400
 PointerAlignment: Left

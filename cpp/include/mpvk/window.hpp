@@ -1,12 +1,14 @@
 #pragma once
 
-#include <memory>
+#include <vector>
 
 struct GLFWwindow;
 
 namespace mpvk {
 class Window {
 public:
+  static std::vector<const char*> required_instance_extensions();
+
   explicit Window(int w, int h, const char* title);
   ~Window();
 

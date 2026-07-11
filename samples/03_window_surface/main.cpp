@@ -7,7 +7,11 @@
 #include "mpvk/window.hpp"
 
 int main() {
-  mpvk::Window   window{640, 640, "03_window_surface"};
+  mpvk::Window window{640, 640, "03_window_surface"};
+
+  auto required_instance_extensions =
+    mpvk::Window::required_instance_extensions();
+
   mpvk::Instance instance("03_window_surface");
   LogI("Vulkan instance created.");
 

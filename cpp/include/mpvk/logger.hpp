@@ -42,8 +42,8 @@ public:
       // Create sinks for both console and file output. If the directory cannot
       // be created (e.g. sandbox/permission issues), fall back to console-only
       // so logging never aborts the application.
-      auto
-        console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+      auto console_sink =
+        std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
 
       std::string                                        log_file;
       std::shared_ptr<spdlog::sinks::basic_file_sink_mt> file_sink;
@@ -58,8 +58,8 @@ public:
            << ".log";
         log_file = (log_dir / ss.str()).string();
 
-        file_sink = std::make_shared<
-          spdlog::sinks::basic_file_sink_mt>(log_file, true);
+        file_sink =
+          std::make_shared<spdlog::sinks::basic_file_sink_mt>(log_file, true);
       } catch (const std::exception&) {
         file_sink.reset();
       }
@@ -68,9 +68,8 @@ public:
       if (file_sink) {
         sinks.push_back(file_sink);
       }
-      logger_ = std::make_shared<spdlog::logger>("mpvk",
-                                                 sinks.begin(),
-                                                 sinks.end());
+      logger_ =
+        std::make_shared<spdlog::logger>("mpvk", sinks.begin(), sinks.end());
       logger_->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [mpvk] [%^%l%$] %v");
 
       if (file_sink) {
@@ -124,8 +123,8 @@ public:
       // Format the user message ourselves via spdlog::fmt_lib (= std or fmt
       // depending on the build), then log the finished string through a literal
       // format so no runtime format string reaches spdlog's typed API.
-      auto arg_tuple = std::tuple<std::decay_t<Args>...>(
-        std::forward<Args>(args)...);
+      auto arg_tuple =
+        std::tuple<std::decay_t<Args>...>(std::forward<Args>(args)...);
       auto formatted = std::apply(
         [&](auto&... unpacked) {
           return spdlog::fmt_lib::vformat(fmt_view,

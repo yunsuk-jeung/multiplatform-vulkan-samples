@@ -1,11 +1,18 @@
+#include <cstdint>
 #include <stdexcept>
 
 #include <GLFW/glfw3.h>
 
-#include "mpvk/logger.hpp"
 #include "mpvk/window.hpp"
 
 namespace mpvk {
+
+std::vector<const char*> Window::required_instance_extensions() {
+  uint32_t     count = 0;
+  const char** exts  = glfwGetRequiredInstanceExtensions(&count);
+  return std::vector<const char*>(exts, exts + count);
+}
+
 Window::Window(int w, int h, const char* title) {
   if (!glfwInit()) {
     glfwTerminate();

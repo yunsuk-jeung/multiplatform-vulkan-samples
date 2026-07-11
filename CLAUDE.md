@@ -292,6 +292,14 @@ until a sample truly requires it.
 
 * contains the actual per-sample teaching notes and implementation plan
 
+`docs/cpp_notes.md` (general C++ tips):
+
+* whenever a **general C++ coding lesson** comes up during review/implementation
+  (not Vulkan-specific), record it here as a short entry: **규칙 + 왜 + 예시** +
+  a link to where it appeared. Examples: pessimizing move / NRVO, forward
+  declaration with references, catch by const ref, custom deleters, etc.
+* append new entries; keep each short. Vulkan concepts still go to `concepts.md`.
+
 `NEXT.md` (repo root — the "start here" handoff file):
 
 * a single always-current file holding **only the current starting point**:
