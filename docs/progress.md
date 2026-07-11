@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-07-11 — validation layer + debug messenger (Instance)
+
+- `mpvk::Instance`에 디버그 빌드 한정 validation 추가: `VK_LAYER_KHRONOS_validation`
+  레이어 + `VK_EXT_debug_utils` 확장(둘 다 지원 확인 후 opt-in) + debug messenger.
+- sample 02를 validation 켠 상태로 재검증: 정상 시 경고 0개, priority를 일부러
+  제거하니 콜백이 `[vk] vkCreateDevice(): ... queueCount must be greater than 0`
+  으로 잡힘 → **실제 검증 동작 확인**(02의 "validation 미검증" 숙제 해소).
+- 막혔던 것 / 배운 것:
+  - **순서:** 레이어/확장 검출은 createInstance 前, messenger 생성은 後
+    (handle_ 필요). 섞으면 dispatcher init assert로 죽음.
+  - **콜백 타입:** 이 SDK vulkan.hpp는 pfnUserCallback을 `vk::` 강타입으로 정의 →
+    콜백도 `vk::` 타입이어야 함(C 타입은 컴파일 에러).
+  - **EXT 함수:** `vk::detail::DispatchLoaderDynamic` 필요(생성/파괴 호출에 전달).
+  - release 전용 스코프 버그(`layers`가 `#ifndef NDEBUG` 안에 선언)도 잡음.
+- 스택 변화: 로깅에 **spdlog** 도입됨(로그 파일 출력). 콜백은 아직 fprintf라
+  추후 spdlog로 통일 예정(폴리시).
+- **다음**: Phase 2 — `03_window_surface`.
+
 ## 2026-07-08 — 02_logical_device 완료
 
 - `mpvk`에 `PhysicalDevice`(GPU 선택 + graphics queue family 탐색),

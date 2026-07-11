@@ -25,6 +25,12 @@
 macOS에서 MoltenVK를 통해 Vulkan을 쓰려면 portability 확장을 opt-in 해야 한다.
 - 처음 등장: [01_device_info](roadmap.md#-01_device_info)
 
+### Validation layer & debug messenger
+`VK_LAYER_KHRONOS_validation`(레이어)이 API 오용을 런타임에 검사하고,
+`VK_EXT_debug_utils`로 만든 debug messenger 콜백이 그 메시지를 받아 출력한다.
+디버그 빌드에서만 opt-in. EXT 함수라 동적 디스패처(`DispatchLoaderDynamic`)가 필요.
+- 처음 등장: [01_device_info](samples/01_device_info.md)
+
 ## Phase 1 — 디바이스와 큐
 
 ### Logical device (`VkDevice`)

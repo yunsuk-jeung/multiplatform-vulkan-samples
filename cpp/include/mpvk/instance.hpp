@@ -20,6 +20,9 @@ public:
 
 private:
   vk::Instance handle_;
+
+  vk::DebugUtilsMessengerEXT        debug_messenger_{};
+  vk::detail::DispatchLoaderDynamic dispatcher_{};  // EXT 함수 호출용
 };
 
 }  // namespace mpvk
