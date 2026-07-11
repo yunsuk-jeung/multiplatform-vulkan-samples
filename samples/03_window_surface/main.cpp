@@ -4,9 +4,11 @@
 #include "mpvk/instance.hpp"
 #include "mpvk/logger.hpp"
 #include "mpvk/physical_device.hpp"
+#include "mpvk/window.hpp"
 
 int main() {
-  mpvk::Instance instance("02_logical_device");
+  mpvk::Window   window{640, 640, "03_window_surface"};
+  mpvk::Instance instance("03_window_surface");
   LogI("Vulkan instance created.");
 
   mpvk::PhysicalDevice physical_device{instance};
@@ -19,5 +21,8 @@ int main() {
   LogI("Logical device created. Graphics queue: {}",
        device.graphics_queue() ? "OK" : "NULL");
 
+  while (!window.should_close()) {
+    window.poll_events();
+  }
   return 0;
 }

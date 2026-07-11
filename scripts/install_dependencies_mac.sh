@@ -5,7 +5,8 @@
 # Usage: ./install_dependencies_mac.sh [debug|release]
 #
 # Currently installs the minimal build toolchain via Homebrew, then builds
-# spdlog from source. Other dependencies are added here as samples require them.
+# spdlog and GLFW from source. Other dependencies are added here as samples
+# require them.
 #
 # Env:
 #   SKIP_BREW=1   skip the Homebrew system package step (already installed)
@@ -116,6 +117,7 @@ fetch_source() {
 echo ""
 echo "Downloading third-party sources into $THIRD_PARTY_DIR ..."
 fetch_source "spdlog"        "https://github.com/gabime/spdlog.git"         "33375433e096d59b1e4dd9d46cac9d58a5528ccb"   "$THIRD_PARTY_DIR/spdlog"
+fetch_source "glfw"          "https://github.com/glfw/glfw.git"             "3.4"                                        "$THIRD_PARTY_DIR/glfw"
 
 # Function to build and install a library
 build_library() {
@@ -150,6 +152,13 @@ build_library "spdlog" "$THIRD_PARTY_DIR/spdlog" \
      -DSPDLOG_USE_STD_FORMAT=ON \
      -DSPDLOG_BUILD_SHARED=ON \
      -DSPDLOG_BUILD_TESTS=OFF"
+
+# 2. GLFW (built from source; installs its own glfw3Config.cmake with the
+#    correct macOS framework link deps, so find_package(glfw3 CONFIG) just works)
+build_library "glfw" "$THIRD_PARTY_DIR/glfw" \
+    "-DGLFW_BUILD_EXAMPLES=OFF \
+     -DGLFW_BUILD_TESTS=OFF \
+     -DGLFW_BUILD_DOCS=OFF"
 
 echo ""
 echo "=================================================="

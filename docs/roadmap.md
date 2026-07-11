@@ -36,7 +36,7 @@
 
 ## Phase 2 — 화면 띄우기 (Window → Surface → Swapchain)
 
-### ⬜ 03_window_surface
+### 🚧 [03_window_surface](samples/03_window_surface.md)
 - **개념**: GLFW로 창 열기, `VkSurfaceKHR` 생성, surface가 지원하는
   format/present mode 질의. 창의 present 큐 family 확인.
 - **mpvk 추가**:

@@ -7,7 +7,7 @@
 namespace mpvk {
 namespace {
 VKAPI_ATTR VkBool32 VKAPI_CALL
-debug_callback(vk::DebugUtilsMessageSeverityFlagBitsEXT      severity,
+debug_callback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
                vk::DebugUtilsMessageTypeFlagsEXT /*type*/,
                const vk::DebugUtilsMessengerCallbackDataEXT* data,
                void* /*user*/) {

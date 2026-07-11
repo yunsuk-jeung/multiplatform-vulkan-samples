@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-07-12 — sample 03 착수: GLFW 통합 + Window
+
+- **GLFW 빌드 통합** (소스 빌드로 결정): `install_dependencies_mac.sh`에
+  spdlog와 동일한 `fetch_source`+`build_library` 패턴으로 GLFW 3.4 추가.
+  - prebuilt zip 방식도 만들어봤으나 폐기 — 소스 빌드는 GLFW가 자기
+    `glfw3Config.cmake`를 생성(프레임워크 링크 자동)하고 ubuntu와도 동일 경로.
+  - `cpp/CMakeLists.txt`에 `find_package(glfw3 CONFIG)` + link, window/surface 소스 등록.
+- **`mpvk::Window`** (GLFW 창 RAII) 구현: `glfwInit`→`GLFW_NO_API`→`glfwCreateWindow`,
+  `should_close`/`poll_events`, 소멸자 destroy+terminate. 빈 창 뜨는 것 확인.
+  - 배운 것: 헤더 전방선언은 `struct GLFWwindow;`(MSVC 대비). `unique_ptr<GLFWwindow>`는
+    기본 deleter가 `delete`라 UB → 커스텀 deleter 필요, 이 단계선 raw 포인터 RAII 채택.
+- 협업 방식 확정: **파일 스켈레톤/리뷰/가이드는 내가, 구현은 사용자가.**
+- **다음**: Surface 구현 + Instance surface 확장 + present family (NEXT.md 참고).
+
 ## 2026-07-11 — validation layer + debug messenger (Instance)
 
 - `mpvk::Instance`에 디버그 빌드 한정 validation 추가: `VK_LAYER_KHRONOS_validation`
