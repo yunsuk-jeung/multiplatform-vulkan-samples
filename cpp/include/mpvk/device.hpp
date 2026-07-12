@@ -5,7 +5,7 @@
 namespace mpvk {
 class PhysicalDevice;
 class Device {
-public:
+ public:
   explicit Device(const PhysicalDevice& gpu);
   ~Device();
 
@@ -16,7 +16,7 @@ public:
   vk::Queue  graphics_queue() const { return graphics_queue_; }
   uint32_t   graphics_family() const { return graphics_family_; }
 
-private:
+ private:
   vk::Device handle_{};
   vk::Queue  graphics_queue_{};
   uint32_t   graphics_family_{0};

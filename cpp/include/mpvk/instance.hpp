@@ -7,7 +7,7 @@
 namespace mpvk {
 
 class Instance {
-public:
+ public:
   explicit Instance(const char*                     app_name         = "mpvk",
                     const std::vector<const char*>& extra_extensions = {});
   ~Instance();
@@ -19,7 +19,7 @@ public:
 
   std::vector<vk::PhysicalDevice> physical_devices() const;
 
-private:
+ private:
   vk::Instance handle_;
 
   vk::DebugUtilsMessengerEXT        debug_messenger_{};

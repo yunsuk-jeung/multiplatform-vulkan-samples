@@ -6,7 +6,7 @@ struct GLFWwindow;
 
 namespace mpvk {
 class Window {
-public:
+ public:
   static std::vector<const char*> required_instance_extensions();
 
   explicit Window(int w, int h, const char* title);
@@ -20,7 +20,7 @@ public:
 
   GLFWwindow* handle() const { return handle_; }
 
-private:
+ private:
   GLFWwindow* handle_{nullptr};
 };
 

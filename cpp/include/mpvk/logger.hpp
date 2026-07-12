@@ -18,7 +18,7 @@
 namespace mpvk {
 
 class Logger {
-public:
+ public:
   // Default location for log files. On desktop this is project-root/logs (when
   // built with MPVK_SOURCE_DIR) or cwd-relative "logs" otherwise. On sandboxed
   // platforms (e.g. iOS) the host app must pass a writable directory to init().
@@ -149,7 +149,7 @@ public:
     return last_slash;
   }
 
-private:
+ private:
   static inline std::shared_ptr<spdlog::logger> logger_;
 };
 
