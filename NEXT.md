@@ -8,26 +8,20 @@
 
 ## 현재 위치
 - ✅ sample 01 / 02 완료, Instance에 validation layer + debug messenger (spdlog)
-- 🚧 **sample 03 (`03_window_surface`) 진행 중**:
-  - ✅ GLFW 빌드 통합 (소스 빌드, `install_dependencies_mac.sh` + cpp CMake, 검증됨)
-  - ✅ `mpvk::Window` (GLFW 창 RAII, `should_close`/`poll_events`) — 빈 창 확인
-  - ⬜ `mpvk::Surface` (아직 스켈레톤)
-  - ⬜ Instance에 surface 확장 병합, present family 탐색, Device present queue
+- ✅ **sample 03 (`03_window_surface`) 완료** — window + surface + graphics/present queue,
+  validation 0개. headless(02)/windowed(03)를 `const Surface*`+`optional`로 통합.
 
-## 다음에 할 일 (sample 03 이어서, 순서대로)
-1. **`mpvk::Window`에 `required_instance_extensions()` 추가** — `glfwGetRequiredInstanceExtensions` 래핑.
-2. **Instance에 surface 확장 병합** — 위 목록을 extensions에 합침(portability 확장은 유지).
-   ⚠️ `glfwInit` 이후라야 유효 → main에서 **Window를 Instance보다 먼저** 생성.
-3. **`mpvk::Surface` 구현** — `glfwCreateWindowSurface`, `vk::Instance` 보관해
-   소멸자에서 `destroySurfaceKHR`(instance보다 먼저 파괴).
-4. **PhysicalDevice에 present family 탐색** — `getSurfaceSupportKHR(family, surface)`.
-   graphics와 다를 수 있음.
-5. **Device에 present queue** — 두 family 같으면 큐 1개, 다르면 2개.
-6. **surface 지원 질의 출력** — capabilities/formats/present modes 개수.
-7. main에서 `Window → Instance → Surface → PhysicalDevice → Device` 연결 + validation 0개.
+## 다음에 할 일
+**sample 04 (`04_clear_screen`) 시작** — swapchain으로 화면을 특정 색으로 지우기.
+가장 큰 덩어리(렌더 루프의 뼈대). 새 개념 多:
+- swapchain 생성(surface capabilities/format/present mode 질의 → 선택), swapchain 이미지/뷰
+- command pool / command buffer, 이미지 acquire → clear 기록 → submit → present
+- 동기화: semaphore(GPU-GPU), fence(CPU-GPU), frames-in-flight
+- 시작 규칙: 교육 문서 [docs/samples/04_clear_screen.md](docs/samples/04_clear_screen.md) 먼저(작성됨).
+  첫 스텝은 **swapchain 지원 질의 + `mpvk::Swapchain` 생성**부터 작게.
 
-> 상세/함정은 [docs/samples/03_window_surface.md](docs/samples/03_window_surface.md) 참고.
-> 사용자가 구현, 나는 파일 스켈레톤/리뷰/가이드 담당.
+> 협업 방식: 사용자가 구현, 나는 파일 스켈레톤/리뷰/가이드 + 문서 갱신.
+> 미커밋 변경이 남아 있으면 먼저 커밋(스크립트·window·surface·physical/device·문서).
 
 ## 이어서 하려면 (환경 복구)
 ```bash

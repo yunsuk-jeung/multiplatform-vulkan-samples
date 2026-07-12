@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-12 — sample 03 완료: window + surface + present queue
+
+- `mpvk::Surface`(VkSurfaceKHR RAII, instance보다 먼저 파괴), Instance에 surface
+  확장 주입(`extra_extensions`), `PhysicalDevice`에 present family 탐색
+  (`getSurfaceSupportKHR`, `std::optional`), `Device`에 present queue 확보 완료.
+- 실행: graphics/present family=0, graphics/present queue OK, validation 0개.
+- 설계 결정:
+  - present family는 **PhysicalDevice**에 둠(GPU 선택에 present 반영). Device는 읽기만.
+  - **headless = `const Surface* = nullptr` + `optional<present_family_>`** 로 표현
+    → windowed(03)/headless(02)를 한 타입으로. sample 02 그대로 동작.
+  - surface 확장은 GLFW가 제공(필수라 지원 확인 없이 주입), portability는 Instance 내부 유지.
+- 버그/교훈: `if (!res)`(VkResult 0=성공) → `if (res != VK_SUCCESS)` (cpp_notes 등재).
+  중복 family index로 큐 2개 만들면 validation 에러 → 중복 제거.
+- surface capabilities/formats/present modes 질의는 **04로 이월**(swapchain에서 사용).
+- **다음**: sample 04 (`04_clear_screen`) — swapchain + 렌더 루프 + 동기화.
+
 ## 2026-07-12 — sample 03 착수: GLFW 통합 + Window
 
 - **GLFW 빌드 통합** (소스 빌드로 결정): `install_dependencies_mac.sh`에

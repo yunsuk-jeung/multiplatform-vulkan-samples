@@ -1,8 +1,9 @@
 # 03_window_surface
 
-> Phase 2 · 상태: 🚧 진행 중
-> (GLFW 빌드 통합 ✅ / Window ✅ / Surface ⬜ / Instance surface 확장 ⬜ /
->  present family ⬜ / Device present queue ⬜)
+> Phase 2 · 상태: ✅ 완료
+> (GLFW 통합 ✅ / Window ✅ / Instance surface 확장 ✅ / Surface ✅ /
+>  present family ✅ / Device present queue ✅ — 창 뜨고 validation 0개, 실행 확인)
+> surface capabilities/formats/present modes 질의(Step 7)는 **04 swapchain**에서 다룬다.
 
 ## Goal
 
@@ -239,7 +240,7 @@ GLFW는 **소스에서 빌드**한다 (spdlog와 동일한 `fetch_source` + `bui
 
 > 여기까지 완료. 아래 Step 3부터 이어서.
 
-### Step 3 — Instance에 surface 확장 병합 ⬜
+### Step 3 — Instance에 surface 확장 병합 ✅
 
 Surface를 만들려면 instance에 surface 확장(`VK_KHR_surface` + 플랫폼별)이 켜져
 있어야 한다. 그 목록은 GLFW가 알려준다.
@@ -283,7 +284,7 @@ mpvk::Instance instance("03_window_surface",
 확장이 빠졌으면 다음 Step 4의 `glfwCreateWindowSurface`에서 실패하므로, 여기선
 "확장을 켠 채로도 instance가 정상 생성"까지만 확인.
 
-### Step 4 — `mpvk::Surface` 구현 ⬜
+### Step 4 — `mpvk::Surface` 구현 ✅
 - `Surface(const Instance&, const Window&)` 에서
   `glfwCreateWindowSurface(static_cast<VkInstance>(instance.handle()), window.handle(), nullptr, &raw)`.
   `VkResult != VK_SUCCESS`면 throw. `raw`(VkSurfaceKHR) → `vk::SurfaceKHR` 대입.
@@ -292,19 +293,40 @@ mpvk::Instance instance("03_window_surface",
 - **파괴 순서:** main 선언 순서를 `Instance → Window → Surface` 로 두면 소멸 역순으로
   Surface가 Instance보다 먼저 죽는다. (surface→instance 규칙 준수)
 
-### Step 5 — PhysicalDevice에 present family ⬜
-- 이제 `PhysicalDevice`가 surface도 받아 **present family**를 찾는다:
-  `physical.getSurfaceSupportKHR(i, surface)` 가 true인 family index.
-- 보관: `graphics_family_`, `present_family_`. 선택 기준: 둘 다 존재하는 GPU.
+### Step 5 — PhysicalDevice에 present family ✅
+- `PhysicalDevice(const Instance&, const Surface* = nullptr)` 로 surface를 **nullable**
+  주입 받아 present family를 찾는다: `pd.getSurfaceSupportKHR(i, surface->handle())`.
+- 보관: `graphics_family_`, `std::optional<uint32_t> present_family_`.
+  선택 기준: graphics 존재 + (surface 없거나 present 존재). headless면 present=nullopt.
 - graphics와 같을 수도/다를 수도 → 하드코딩 금지.
 
-### Step 6 — Device에 present queue ⬜
-- 두 family가 **같으면** `DeviceQueueCreateInfo` 1개, **다르면** 2개(중복 index 제거).
-- 생성 후 `getQueue`로 present queue 핸들 확보.
+### Step 6 — Device에 present queue ✅
+- `gpu.present_family()`(optional)를 읽어 큐 구성. **같은 index면 큐 1개**(중복 제거),
+  다르면 2개. 생성 후 `getQueue`로 present queue 확보(present 있을 때만).
+- 접근자 `present_queue()`, `present_family()` 추가.
 
-### Step 7 — surface 지원 질의 출력 ⬜
-- `getSurfaceCapabilitiesKHR`, `getSurfaceFormatsKHR`, `getSurfacePresentModesKHR`
-  개수/요약을 로그로. (04 swapchain에서 실제 사용)
+### Step 7 — surface 지원 질의 → **04로 이월**
+- capabilities/formats/present modes 질의는 swapchain을 만들 때 바로 쓰므로
+  [04_clear_screen](04_clear_screen.md)에서 다룬다.
 
-### Step 8 — main 전체 연결 ⬜
-- `Window → Instance → Surface → PhysicalDevice(surface) → Device` + validation 0개 확인.
+### Step 8 — main 전체 연결 ✅
+- `Window → Instance(+surface ext) → Surface → PhysicalDevice(&surface) → Device`.
+  실행: graphics/present family·queue 출력, validation 0개 확인.
+
+---
+
+## 실전 노트 (구현 후 확정 — 이번 샘플 핵심)
+
+- **생성/파괴 순서가 전부다.** 생성: `Window`(glfwInit) → `Instance`(surface 확장) →
+  `Surface` → `PhysicalDevice(&surface)` → `Device`. 파괴는 역순 →
+  `Surface`가 `Instance`보다 먼저 죽음. main 선언 순서로 자동 보장.
+- **surface 확장은 GLFW가 준다.** `glfwGetRequiredInstanceExtensions`(glfwInit 이후).
+  Instance엔 밖에서 주입(`extra_extensions`), portability(`__APPLE__`)는 Instance 내부 유지.
+- **필수 vs 선택 확장:** GLFW required 확장은 **필수** → 지원 확인 없이 넣고,
+  없으면 `createInstance`가 알아서 실패. (portability/debug_utils는 *선택*이라 확인 후 opt-in.)
+- **present는 queueFlags가 아니라 surface 기준.** `getSurfaceSupportKHR(family, surface)`.
+  graphics≠present 가능(멀티 GPU 등) → 각각 저장, 중복 index면 큐 1개.
+- **headless = surface 없음 = present 없음.** `const Surface* = nullptr` +
+  `std::optional<present_family_>` 로 windowed/headless를 한 타입으로 표현(02는 headless).
+- **`VkResult`는 0이 성공.** `if (!res)` 금지, `if (res != VK_SUCCESS)`. (cpp_notes 등재)
+- **`GLFW_NO_API` 필수**(OpenGL 컨텍스트 방지), `glfwInit` 먼저.

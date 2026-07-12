@@ -57,6 +57,28 @@ family index를 찾아 device 생성 시 요청하고, 생성 후 `getQueue`로 
 소멸자 + 복사 금지로 유일 소유를 강제하고, 선언 순서로 파괴 역순을 보장한다.
 - 처음 등장: [02_logical_device](samples/02_logical_device.md)
 
+## Phase 2 — 창과 surface
+
+### WSI / surface (`VkSurfaceKHR`)
+Vulkan은 창을 만들지 않는다. 플랫폼 윈도우(GLFW)와 Vulkan을 잇는 instance 레벨
+객체가 surface다. `VK_KHR_surface` + 플랫폼별 확장(예: `VK_EXT_metal_surface`)이
+필요하고, 그 목록은 `glfwGetRequiredInstanceExtensions`가 알려준다.
+surface는 instance보다 먼저 파괴한다(`destroySurfaceKHR`).
+- 처음 등장: [03_window_surface](samples/03_window_surface.md)
+
+### Present queue family
+"화면에 출력(present) 가능한" queue family. queueFlags가 아니라 **surface 기준**
+(`getSurfaceSupportKHR(family, surface)`)으로 결정되며 graphics family와 다를 수 있다.
+surface가 없으면(headless) present family도 없다.
+- 처음 등장: [03_window_surface](samples/03_window_surface.md)
+- 관련: [02_logical_device](samples/02_logical_device.md) (queue family 기초)
+
+### GLFW 통합 (윈도잉 의존성)
+첫 외부 윈도잉 라이브러리. 창 생성/입력/플랫폼 차이를 흡수하고
+`glfwCreateWindowSurface`로 surface 생성을 감춘다. `GLFW_NO_API`로 OpenGL 컨텍스트를
+끄고, 소스 빌드로 `libs/`에 설치해 `find_package(glfw3 CONFIG)`로 소비한다.
+- 처음 등장: [03_window_surface](samples/03_window_surface.md)
+
 <!--
 새 항목 템플릿:
 

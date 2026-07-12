@@ -52,6 +52,14 @@ Vulkan과 무관하게, 샘플을 구현하며 마주친 **일반 C++ 코딩 상
 - **왜:** 값으로 잡으면 파생 예외가 **slicing** 되어 정보가 잘린다(+불필요한 복사).
 - 등장: [02_logical_device](samples/02_logical_device.md) main
 
+### `VkResult`는 0이 성공 — `if (!res)`로 실패 판정하지 마라
+- **규칙:** Vulkan/C API 반환코드는 `VK_SUCCESS == 0`. 실패 판정은
+  `if (res != VK_SUCCESS)`. C의 `errno`식 `if (!ret)`(0이 실패) 관습과 **반대**.
+- **왜:** `if (!res)`는 `res == 0`(=성공)일 때 참이 되어 **성공했을 때 예외를 던진다**.
+- **예시:** `glfwCreateWindowSurface`가 `VK_SUCCESS`(0)를 반환했는데 `if (!res) throw`로
+  잡아 성공 시 죽었던 사례.
+- 등장: [03_window_surface](samples/03_window_surface.md) `Surface`
+
 ### `size()`와 비교하는 루프 인덱스는 부호 없는 타입
 - **규칙:** `for (uint32_t i = 0; i < v.size(); ++i)` — `int i` 금지.
 - **왜:** `size()`는 `size_t`(부호 없음)라 `int`와 비교하면 `-Wsign-compare` 경고 +
