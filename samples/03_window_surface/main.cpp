@@ -21,7 +21,6 @@ int main() {
   mpvk::Surface surface{instance, window};
 
   mpvk::PhysicalDevice physical_device{instance, &surface};
-  mpvk::Device         device{physical_device};
 
   auto props = physical_device.handle().getProperties();
   LogI("Selected GPU: {} (graphics family = {})",
@@ -29,8 +28,12 @@ int main() {
        physical_device.graphics_family());
   auto present = physical_device.present_family();
   LogI("present family = {}", present ? std::to_string(*present) : "none");
+
+  mpvk::Device device{physical_device};
   LogI("Logical device created. Graphics queue: {}",
        device.graphics_queue() ? "OK" : "NULL");
+
+  LogI("present queue: {}", device.present_queue() ? "OK" : "NULL");
 
   while (!window.should_close()) {
     window.poll_events();
