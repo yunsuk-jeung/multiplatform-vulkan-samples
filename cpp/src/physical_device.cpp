@@ -1,25 +1,42 @@
+#include <optional>
 #include <stdexcept>
 
 #include "mpvk/instance.hpp"
 #include "mpvk/physical_device.hpp"
+#include "mpvk/surface.hpp"
 
 namespace mpvk {
-PhysicalDevice::PhysicalDevice(const Instance& instance) {
-  auto physical_devices = instance.physical_devices();
+PhysicalDevice::PhysicalDevice(const Instance& instance,
+                               const Surface*  surface) {
+  for (const auto& physical_device : instance.physical_devices()) {
+    auto families = physical_device.getQueueFamilyProperties();
 
-  for (auto& physical_device : physical_devices) {
-    auto queue_family_props = physical_device.getQueueFamilyProperties();
+    std::optional<uint32_t> graphics;
+    std::optional<uint32_t> present;
 
-    for (size_t i = 0; i < queue_family_props.size(); i++) {
-      auto& prop = queue_family_props[i];
-
-      if (prop.queueFlags & vk::QueueFlagBits::eGraphics) {
-        handle_          = physical_device;
-        graphics_family_ = i;
-        return;
+    for (uint32_t i = 0; i < families.size(); ++i) {
+      if (families[i].queueFlags & vk::QueueFlagBits::eGraphics) {
+        if (!graphics) {
+          graphics = i;
+        }
+      }
+      if (surface
+          && physical_device.getSurfaceSupportKHR(i, surface->handle())) {
+        if (!present) {
+          present = i;
+        }
       }
     }
+
+    bool present_ok = (surface == nullptr) || present.has_value();
+    if (graphics && present_ok) {
+      handle_          = physical_device;
+      graphics_family_ = *graphics;
+      present_family_  = present;
+      return;
+    }
   }
-  throw std::runtime_error("no gpu with a graphics queue family");
+  throw std::runtime_error(surface ? "no GPU with graphics + present support"
+                                   : "no GPU with a graphics queue family");
 }
 }  // namespace mpvk

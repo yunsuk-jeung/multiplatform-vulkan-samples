@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include <vulkan/vulkan.hpp>
 
 namespace mpvk {
@@ -17,8 +19,8 @@ class Device {
   uint32_t   graphics_family() const { return graphics_family_; }
 
  private:
-  vk::Device handle_{};
-  vk::Queue  graphics_queue_{};
+  vk::Device handle_{nullptr};
+  vk::Queue  graphics_queue_{nullptr};
   uint32_t   graphics_family_{0};
 };
 

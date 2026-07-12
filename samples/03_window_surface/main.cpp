@@ -1,3 +1,5 @@
+#include <string>
+
 #include <vulkan/vulkan.hpp>
 
 #include "mpvk/device.hpp"
@@ -18,13 +20,15 @@ int main() {
 
   mpvk::Surface surface{instance, window};
 
-  mpvk::PhysicalDevice physical_device{instance};
+  mpvk::PhysicalDevice physical_device{instance, &surface};
   mpvk::Device         device{physical_device};
 
   auto props = physical_device.handle().getProperties();
   LogI("Selected GPU: {} (graphics family = {})",
        props.deviceName.data(),
        physical_device.graphics_family());
+  auto present = physical_device.present_family();
+  LogI("present family = {}", present ? std::to_string(*present) : "none");
   LogI("Logical device created. Graphics queue: {}",
        device.graphics_queue() ? "OK" : "NULL");
 
