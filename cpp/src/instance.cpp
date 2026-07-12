@@ -26,7 +26,8 @@ debug_callback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
 }
 }  // namespace
 
-Instance::Instance(const char* app_name) {
+Instance::Instance(const char*                     app_name,
+                   const std::vector<const char*>& extra_extensions) {
   vk::ApplicationInfo app_info{};
   app_info.pApplicationName = app_name;
   app_info.apiVersion       = VK_API_VERSION_1_4;
@@ -57,8 +58,10 @@ Instance::Instance(const char* app_name) {
       layers.push_back(l.layerName);
     }
   }
-
 #endif
+  for (auto& e : extra_extensions) {
+    extensions.push_back(e);
+  }
 
   vk::InstanceCreateInfo create_info{};
   create_info.flags            = flags;

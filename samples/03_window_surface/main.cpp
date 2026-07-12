@@ -12,7 +12,7 @@ int main() {
   auto required_instance_extensions =
     mpvk::Window::required_instance_extensions();
 
-  mpvk::Instance instance("03_window_surface");
+  mpvk::Instance instance("03_window_surface", required_instance_extensions);
   LogI("Vulkan instance created.");
 
   mpvk::PhysicalDevice physical_device{instance};

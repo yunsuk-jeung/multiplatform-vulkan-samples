@@ -8,7 +8,8 @@ namespace mpvk {
 
 class Instance {
 public:
-  explicit Instance(const char* app_name = "mpvk");
+  explicit Instance(const char*                     app_name         = "mpvk",
+                    const std::vector<const char*>& extra_extensions = {});
   ~Instance();
 
   Instance(const Instance&)            = delete;
