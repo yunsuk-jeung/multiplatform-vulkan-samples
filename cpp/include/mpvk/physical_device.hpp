@@ -13,7 +13,7 @@ class Surface;
 
 class PhysicalDevice {
  public:
-  // surface == nullptr → headless (present family 없음, nullopt)
+  // surface == nullptr → headless (no present family, nullopt)
   explicit PhysicalDevice(const Instance& instance,
                           const Surface*  surface = nullptr);
 
