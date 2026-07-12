@@ -4,6 +4,7 @@
 #include "mpvk/instance.hpp"
 #include "mpvk/logger.hpp"
 #include "mpvk/physical_device.hpp"
+#include "mpvk/surface.hpp"
 #include "mpvk/window.hpp"
 
 int main() {
@@ -14,6 +15,8 @@ int main() {
 
   mpvk::Instance instance("03_window_surface", required_instance_extensions);
   LogI("Vulkan instance created.");
+
+  mpvk::Surface surface{instance, window};
 
   mpvk::PhysicalDevice physical_device{instance};
   mpvk::Device         device{physical_device};
