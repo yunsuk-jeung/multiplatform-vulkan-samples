@@ -33,6 +33,9 @@ Device::Device(const PhysicalDevice& gpu) {
       extensions.push_back(kPortabilitySubset);
       break;
     }
+    if (gpu.present_family()) {
+      extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    }
   }
 
   vk::DeviceCreateInfo device_info;

@@ -9,6 +9,7 @@ add_library(mpvk
   src/physical_device.cpp
   src/window.cpp
   src/surface.cpp
+  src/swapchain.cpp
 )
 target_include_directories(mpvk PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 

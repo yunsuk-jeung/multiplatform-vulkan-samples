@@ -44,4 +44,10 @@ void Window::poll_events() const {
   glfwPollEvents();
 }
 
+vk::Extent2D Window::framebuffer_size() const {
+  int w = 0, h = 0;
+  glfwGetFramebufferSize(handle_, &w, &h);
+  return {static_cast<uint32_t>(w), static_cast<uint32_t>(h)};
+}
+
 }  // namespace mpvk

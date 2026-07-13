@@ -2,3 +2,4 @@
 add_subdirectory(01_device_info)
 add_subdirectory(02_logical_device)
 add_subdirectory(03_window_surface)
+add_subdirectory(04_clear_screen)

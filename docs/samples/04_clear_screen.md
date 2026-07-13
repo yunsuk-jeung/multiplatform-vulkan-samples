@@ -35,6 +35,26 @@ swapchain을 만들어 창을 **매 프레임 특정 색으로 지우고(clear) 
 swapchain 이미지는 우리가 만드는 게 아니라 `getSwapchainImagesKHR`로 **받는다**(소유는
 swapchain). 각 이미지에 대해 접근용 **image view**를 만든다(뷰는 우리가 소유/파괴).
 
+**왜 image view가 필요한가**
+- `VkImage` = 픽셀 데이터 + 메타(format/크기/mip/layer). 파이프라인·프레임버퍼는
+  **이미지에 직접 접근하지 못한다.**
+- `VkImageView` = 그 이미지를 "어떻게 해석하고 어느 부분을 볼지" 정의하는 **렌즈**.
+  렌더 타깃 부착/샘플링/스토리지 모두 view를 통한다.
+- 그래서 swapchain 이미지마다 color view를 만든다.
+- (참고: 이 샘플의 clear는 `vkCmdClearColorImage`로 **이미지에 직접** 하므로 view는
+  05 render pass부터 실제로 쓰인다. 지금은 표준 셋업 + 05 대비.)
+
+**`vk::ImageViewCreateInfo` 필드**
+- `image`: 이 뷰가 가리키는 `VkImage`.
+- `viewType`: 차원 — swapchain은 `e2D` (`eCube`/`e2DArray` 등도 있음).
+- `format`: 텍셀 해석 포맷. 보통 이미지(=swapchain) 포맷과 동일.
+- `components`: 채널 swizzle(rgba 재배치). 기본 identity → 생략.
+- `subresourceRange`: 이미지의 어느 부분을 뷰가 덮는가.
+  - `aspectMask`: color/depth/stencil → swapchain은 `eColor`.
+  - `baseMipLevel`/`levelCount`: mip 범위 → swapchain은 `0 / 1`(mip 1개).
+  - `baseArrayLayer`/`layerCount`: layer 범위 → `0 / 1`(비배열).
+- 즉 `ImageSubresourceRange{eColor, 0, 1, 0, 1}` = "color, mip 0부터 1개, layer 0부터 1개".
+
 ### command pool & command buffer
 GPU는 직접 호출로 일하지 않는다. **command buffer에 명령을 기록**해 queue에 submit한다.
 command buffer는 **command pool**에서 할당한다(pool은 특정 queue family에 묶임).
@@ -175,37 +195,69 @@ LogI("surface: formats={}, present_modes={}, images={}..{}",
 ```
 - 이 값들이 다음 스텝(swapchain 생성)의 입력이다. 우선 개수/범위만 확인.
 
-### Step 2 — `mpvk::Swapchain`
-선택 로직(작은 헬퍼 함수들로):
-- **surface format**: `formats`에서 `eB8G8R8A8Srgb` + `eSrgbNonlinear` 찾고, 없으면 `formats[0]`.
-- **present mode**: `eMailbox` 있으면 그것, 없으면 `eFifo`.
-- **extent**: `caps.currentExtent.width != UINT32_MAX`면 그대로, 아니면
-  `glfwGetFramebufferSize`로 얻어 `caps.minImageExtent`~`maxImageExtent`로 clamp.
-- **imageCount**: `caps.minImageCount + 1`, `maxImageCount>0`면 clamp.
+### Step 2 — `mpvk::Swapchain` (최소 구현)
 
-생성:
+> 목표: swapchain + 이미지 뷰까지 만들고 **파괴만** 해도 validation 0개. 렌더는 Step 5부터.
+> 지금은 **최소**로 — present mode 우선순위 리스트/vsync/`Settings` 전역/Unorm+수동감마는
+> 전부 **나중**(반복 나타나면 승격). 아래는 생성자를 8조각으로 나눈 세부.
+
+**헤더 요구사항 (swapchain.hpp)**
+- include: `<vector>` + `<vulkan/vulkan.hpp>` (중복 `"vulkan/vulkan.hpp"` 금지).
+- 타입은 전부 참조 인자 → **전방 선언만**(`class PhysicalDevice/Device/Surface/Window;`),
+  `mpvk/*.hpp` include 하지 말 것(결합도↓).
+- **복사 금지**(`= delete`) — swapchain·image view 소유.
+- 소멸자에서 파괴하려면 **`vk::Device device_{nullptr};` 멤버 보관**(Surface가 instance 들고 있던 것과 동일 이유).
+- 멤버: `handle_`, `format_`, `extent_`, `images_`, `image_views_`(underscore 일관).
+- 접근자: `handle()`, `format()`, `extent()`, `const std::vector<vk::ImageView>& image_views()`.
+
+**(선택) Window 헬퍼** — extent용 픽셀 크기. GLFW를 Window에 가둠:
 ```cpp
-vk::SwapchainCreateInfoKHR ci;
-ci.surface          = surface;
-ci.minImageCount    = imageCount;
-ci.imageFormat      = fmt.format;
-ci.imageColorSpace  = fmt.colorSpace;
-ci.imageExtent      = extent;
-ci.imageArrayLayers = 1;
-ci.imageUsage       = vk::ImageUsageFlagBits::eColorAttachment
-                    | vk::ImageUsageFlagBits::eTransferDst;  // clear로 지울거라 TransferDst
-ci.preTransform     = caps.currentTransform;
-ci.compositeAlpha   = vk::CompositeAlphaFlagBitsKHR::eOpaque;
-ci.presentMode      = mode;
-ci.clipped          = VK_TRUE;
-// graphics != present family면 imageSharingMode=Concurrent + 두 index,
-// 같으면 Exclusive.
+vk::Extent2D Window::framebuffer_size() const {   // glfwGetFramebufferSize (pixels!)
+  int w = 0, h = 0;
+  glfwGetFramebufferSize(handle_, &w, &h);
+  return {static_cast<uint32_t>(w), static_cast<uint32_t>(h)};
+}
 ```
-그 뒤 `getSwapchainImagesKHR` → 각 이미지에 `createImageView`(2D, 위 format,
-color aspect). RAII 소멸자: 뷰 전부 파괴 → `destroySwapchainKHR`.
 
-> 여기까지: swapchain 만들고 파괴만 해도 validation 0개면 성공. 렌더는 스텝 5부터.
+**생성자 8조각**
+1. **질의**: `gpu.handle().getSurface{Capabilities,Formats,PresentModes}KHR(surface.handle())`.
+2. **format**: `eB8G8R8A8Srgb`+`eSrgbNonlinear` 선호, 없으면 `formats[0]`(항상 유효).
+   - `...Srgb` = 하드웨어 자동 감마. `...Unorm`+수동 감마는 나중(셰이더 단계).
+3. **present mode** (최소): `eFifo` 기본(항상 지원), `eMailbox` 있으면만 선호.
+   ```cpp
+   vk::PresentModeKHR mode = vk::PresentModeKHR::eFifo;
+   for (auto m : modes) { if (m == vk::PresentModeKHR::eMailbox) { mode = m; break; } }
+   ```
+4. **extent**: `caps.currentExtent.width != UINT32_MAX`면 그대로, 아니면
+   `window.framebuffer_size()` → `std::clamp`(min/maxImageExtent). `<algorithm>`,`<cstdint>` 필요.
+   - **Retina 함정**: 논리 크기(800×600) 아니라 **프레임버퍼 픽셀** 써야 함.
+5. **imageCount**: `caps.minImageCount + 1`, `maxImageCount>0`면 그 값으로 clamp.
+   - +1 이유: 최소만 요청하면 다음 이미지 획득 시 드라이버 대기(스톨) 가능. maxImageCount==0=무제한.
+6. **create info**:
+   ```cpp
+   ci.imageUsage = vk::ImageUsageFlagBits::eColorAttachment
+                 | vk::ImageUsageFlagBits::eTransferDst;   // cleared via transfer op
+   uint32_t gfx = gpu.graphics_family();
+   auto     pf  = gpu.present_family();                    // std::optional
+   uint32_t families[] = {gfx, pf ? *pf : gfx};
+   if (pf && *pf != gfx) { ci.imageSharingMode = eConcurrent; ci.setQueueFamilyIndices(families); }
+   else                  { ci.imageSharingMode = eExclusive; }  // 우리 M4: 0/0 → Exclusive
+   ci.preTransform=caps.currentTransform; ci.compositeAlpha=eOpaque;
+   ci.presentMode=mode; ci.clipped=VK_TRUE; ci.oldSwapchain=nullptr;
+   ```
+   - `eTransferDst`: render pass 없이 `vkCmdClearColorImage`(transfer 계열)로 지울 거라.
+   - Concurrent vs Exclusive: 두 family 다를 때만 Concurrent(공유). 같으면 Exclusive(소유권 전환 불필요).
+7. **생성 → 이미지 → 뷰**: `createSwapchainKHR` → `getSwapchainImagesKHR`(swapchain 소유, 파괴 X)
+   → 각 이미지 `createImageView`(`e2D`, format_, `ImageSubresourceRange{eColor,0,1,0,1}`).
+   `device_ = device.handle();` 저장.
+8. **소멸자**: `for (v : image_views_) device_.destroyImageView(v);` → `device_.destroySwapchainKHR(handle_)`.
+
+**검증**: main에 `mpvk::Swapchain swapchain{physical_device, device, surface, window};`
++ `LogI("swapchain: {} images", swapchain.image_views().size());` → 창 뜨고 validation 0개.
 
 ### Step 3~8
 스텝 2가 리뷰 통과하면 command pool → 동기화 → 렌더 루프 순으로 이어서 안내한다.
 (각 스텝은 작게: "만들고 → 실행 확인 → 다음".)
+
+> **미룬 것(나중):** present mode 우선순위 리스트 + `pick` 헬퍼, vsync 토글(생성자 인자),
+> `Settings` 전역/`WindowInfo`/`RenderContext`, Unorm+수동 감마. 필요해질 때 도입.

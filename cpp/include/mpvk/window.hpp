@@ -2,6 +2,8 @@
 
 #include <vector>
 
+#include <vulkan/vulkan.hpp>
+
 struct GLFWwindow;
 
 namespace mpvk {
@@ -17,6 +19,8 @@ class Window {
 
   bool should_close() const;
   void poll_events() const;
+
+  vk::Extent2D framebuffer_size() const;
 
   GLFWwindow* handle() const { return handle_; }
 

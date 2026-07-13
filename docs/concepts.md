@@ -73,6 +73,13 @@ surface가 없으면(headless) present family도 없다.
 - 처음 등장: [03_window_surface](samples/03_window_surface.md)
 - 관련: [02_logical_device](samples/02_logical_device.md) (queue family 기초)
 
+### Image & image view (`VkImage` / `VkImageView`)
+`VkImage`는 픽셀 데이터 + 메타(format/크기/mip/layer)다. 파이프라인·프레임버퍼는
+이미지에 **직접** 접근하지 못하고, "어떻게 해석·어느 부분을 볼지"를 정의한
+`VkImageView`(렌즈)를 통해 접근한다(렌더 타깃/샘플링/스토리지). swapchain 이미지마다
+color image view를 만들어 렌더 타깃으로 쓴다. 필드 상세는 sample doc 참고.
+- 처음 등장: [04_clear_screen](samples/04_clear_screen.md)
+
 ### GLFW 통합 (윈도잉 의존성)
 첫 외부 윈도잉 라이브러리. 창 생성/입력/플랫폼 차이를 흡수하고
 `glfwCreateWindowSurface`로 surface 생성을 감춘다. `GLFW_NO_API`로 OpenGL 컨텍스트를
