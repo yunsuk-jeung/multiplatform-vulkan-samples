@@ -52,6 +52,32 @@ Vulkan과 무관하게, 샘플을 구현하며 마주친 **일반 C++ 코딩 상
 - **왜:** 값으로 잡으면 파생 예외가 **slicing** 되어 정보가 잘린다(+불필요한 복사).
 - 등장: [02_logical_device](samples/02_logical_device.md) main
 
+### vulkan.hpp: `FlagBits`(단일 비트) vs `Flags`(비트마스크)를 구분하라
+- **규칙:** 마스크 필드/인자는 `vk::XxxFlags`(= `Flags<XxxFlagBits>`), 개별 값은 `vk::XxxFlagBits`.
+  마스크 변수를 `FlagBits`로 선언하면 `Flags`를 기대하는 setter/필드에서 타입 에러.
+- **왜:** `Flags`는 OR 조합용 래퍼, `FlagBits`는 원소 하나. `ArrayProxy<const Flags>`에
+  `FlagBits*`를 못 넣는다.
+- **예시:**
+  ```cpp
+  vk::PipelineStageFlagBits s = vk::PipelineStageFlagBits::eTransfer;  // ❌ setWaitDstStageMask에서 에러
+  vk::PipelineStageFlags    s = vk::PipelineStageFlagBits::eTransfer;  // ✅ (Flags = FlagBits OK)
+  ```
+- 등장: [04_clear_screen](samples/04_clear_screen.md) submit `setWaitDstStageMask`
+
+### vulkan.hpp setter에 `handle()` 같은 임시값을 넘기지 마라 (ArrayProxyNoTemporaries)
+- **규칙:** `setSwapchains`/`setWaitSemaphores`/`setImageIndices`/`setQueuePriorities` 등
+  `vk::ArrayProxyNoTemporaries` 인자를 받는 setter에는 **명명된 lvalue**를 넘겨라.
+  `set...(obj.handle())`처럼 **값 반환 결과(임시/rvalue)** 를 직접 넣으면 컴파일 에러.
+- **왜:** setter는 포인터만 struct에 저장 → 임시를 받으면 그 포인터가 곧 dangling.
+  vulkan.hpp가 `NoTemporaries`로 임시 바인딩을 **컴파일 단계에서 금지**한다(런타임 버그 예방).
+- **예시:**
+  ```cpp
+  present.setSwapchains(swapchain.handle());   // ❌ handle()이 임시 → 에러
+  vk::SwapchainKHR sc = swapchain.handle();
+  present.setSwapchains(sc);                   // ✅ named lvalue
+  ```
+- 등장: [04_clear_screen](samples/04_clear_screen.md) presentKHR
+
 ### `VkResult`는 0이 성공 — `if (!res)`로 실패 판정하지 마라
 - **규칙:** Vulkan/C API 반환코드는 `VK_SUCCESS == 0`. 실패 판정은
   `if (res != VK_SUCCESS)`. C의 `errno`식 `if (!ret)`(0이 실패) 관습과 **반대**.

@@ -24,6 +24,7 @@ class Swapchain {
   vk::SwapchainKHR                  handle() const { return handle_; }
   vk::Format                        format() const { return format_; }
   vk::Extent2D                      extent() const { return extent_; }
+  const std::vector<vk::Image>&     images() const { return images_; }
   const std::vector<vk::ImageView>& image_views() const { return image_views_; }
 
  private:

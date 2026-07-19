@@ -10,6 +10,7 @@ add_library(mpvk
   src/window.cpp
   src/surface.cpp
   src/swapchain.cpp
+  src/command_pool.cpp
 )
 target_include_directories(mpvk PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 

@@ -80,6 +80,14 @@ surface가 없으면(headless) present family도 없다.
 color image view를 만들어 렌더 타깃으로 쓴다. 필드 상세는 sample doc 참고.
 - 처음 등장: [04_clear_screen](samples/04_clear_screen.md)
 
+### frames-in-flight vs swapchain 이미지 수
+서로 다른 축이라 개수를 맞추지 않는다. **swapchain 이미지 수**(예 3)는 present 엔진이 굴리는
+화면 버퍼 개수로 **드라이버**가 결정. **frames-in-flight**(보통 2)는 CPU가 GPU보다 얼마나
+앞서 달릴지 = CPU 측 자원 세트 수로 **내가** 정하는 지연/처리량 튜닝값. acquire가 주는 이미지
+인덱스(img)는 못 고르므로 "슬롯 f == img" 가정 불가 → `imageAvailable`·`inFlight`·command
+buffer는 f로, `renderFinished`는 img로 인덱싱.
+- 처음 등장: [04_clear_screen](samples/04_clear_screen.md)
+
 ### GLFW 통합 (윈도잉 의존성)
 첫 외부 윈도잉 라이브러리. 창 생성/입력/플랫폼 차이를 흡수하고
 `glfwCreateWindowSurface`로 surface 생성을 감춘다. `GLFW_NO_API`로 OpenGL 컨텍스트를

@@ -1,6 +1,9 @@
 # 04_clear_screen
 
-> Phase 2 · 상태: ⬜ 예정
+> Phase 2 · 상태: 🚧 진행 중
+> (swapchain+뷰 ✅ / command pool ✅ / 동기화 ✅ / 렌더 루프 ✅ / frames-in-flight ⬜ / 재생성 ⬜)
+> 짙은 파란 화면 렌더, 렌더 루프 중 validation 0개 확인(slot f=0 고정).
+> 참고: swapchain은 device extension `VK_KHR_swapchain` 필요 → present family 있을 때 Device에서 활성화.
 
 ## Goal
 
@@ -66,6 +69,17 @@ render pass 없이 지우려면 직접 전환한다:
 전환은 `vkCmdPipelineBarrier`(vulkan.hpp `pipelineBarrier2`/`ImageMemoryBarrier`)로.
 > clear 자체는 `vkCmdClearColorImage`. (render pass의 load-op clear는 **05**에서.)
 
+### frames-in-flight vs swapchain 이미지 수 — 다른 축
+둘은 **다른 것을 센다**. 억지로 같게 맞추지 않는다.
+- **swapchain 이미지 수**(예 3): present 엔진이 굴리는 화면 버퍼 개수. **드라이버**가 결정.
+- **frames-in-flight**(보통 2): CPU가 GPU보다 얼마나 앞서 달릴지 = CPU 측 자원 세트 수.
+  **내가** 정하는 지연/처리량 튜닝 값.
+
+왜 안 맞추나: 역할이 다르고, frames-in-flight를 키우면 CPU 선행이 늘어 **입력 지연↑**(2가 균형점).
+게다가 acquire가 주는 **이미지 인덱스(img)는 내가 못 고르므로** "슬롯 f == img"로 가정 불가.
+→ 그래서 인덱싱이 갈린다: `imageAvailable`·`inFlight`·command buffer = **f(2)**,
+`renderFinished` = **img(이미지 수)**.
+
 ### 동기화 — 이 샘플의 진짜 난이도
 GPU는 비동기다. 순서를 강제하지 않으면 "아직 안 그린 이미지를 present"하는 참사가 난다.
 - **semaphore** (GPU↔GPU, 큐 작업 간 순서):
@@ -127,14 +141,15 @@ presentKHR(wait=renderFinished, imageIndex)
 
 ## Implementation steps (큰 순서 — 각 단계 후 실행 확인)
 
-1. **swapchain 지원 질의** — capabilities/formats/present modes 받아 로그(03에서 미룬 것).
-2. **`mpvk::Swapchain` 생성** — format/present mode/extent 선택 → `createSwapchainKHR`
-   → 이미지 획득 → 이미지 뷰 생성. 여기까지 만들고 파괴만 확인(아직 렌더 X).
-3. **command pool + command buffer** 할당.
-4. **동기화 객체** — frames-in-flight(=2) 만큼 semaphore 2개 + fence.
-5. **렌더 루프 한 프레임** — acquire → record(barrier→clear→barrier) → submit → present.
-   고정 크기로 색이 채워지는지 확인.
-6. **frames-in-flight** 로 N개 슬롯 순환.
+1. ✅ **swapchain 지원 질의** — `Swapchain` 생성자 안에서 caps/formats/modes 조회.
+2. ✅ **`mpvk::Swapchain` 생성** — 선택 로직(익명 namespace 헬퍼) → `createSwapchainKHR`
+   → 이미지 획득 → `create_image_views()`. 소멸자 뷰→swapchain. `3 images`, validation 0개.
+   (Device에 `VK_KHR_swapchain` 확장 추가 필요했음 — present family 있을 때.)
+3. ✅ **command pool + command buffer** — graphics family, `allocate(kFramesInFlight)`.
+4. ✅ **동기화 객체** — `imageAvailable`·`inFlight`는 frame(f), `renderFinished`는 image(img).
+5. ✅ **렌더 루프 한 프레임** — acquire → reset → barrier/clear/barrier → submit → present.
+   짙은 파랑, validation 0개(f=0 고정). 종료 시 `waitIdle` + sync destroy.
+6. 🚧 **frames-in-flight** 로 N개 슬롯 순환.
 7. **swapchain 재생성** — out-of-date/suboptimal + 리사이즈 처리.
 8. 종료 시 `device.waitIdle()` 후 파괴, validation 0개 확인.
 
@@ -195,7 +210,7 @@ LogI("surface: formats={}, present_modes={}, images={}..{}",
 ```
 - 이 값들이 다음 스텝(swapchain 생성)의 입력이다. 우선 개수/범위만 확인.
 
-### Step 2 — `mpvk::Swapchain` (최소 구현)
+### Step 2 — `mpvk::Swapchain` (최소 구현) ✅
 
 > 목표: swapchain + 이미지 뷰까지 만들고 **파괴만** 해도 validation 0개. 렌더는 Step 5부터.
 > 지금은 **최소**로 — present mode 우선순위 리스트/vsync/`Settings` 전역/Unorm+수동감마는
@@ -255,9 +270,241 @@ vk::Extent2D Window::framebuffer_size() const {   // glfwGetFramebufferSize (pix
 **검증**: main에 `mpvk::Swapchain swapchain{physical_device, device, surface, window};`
 + `LogI("swapchain: {} images", swapchain.image_views().size());` → 창 뜨고 validation 0개.
 
-### Step 3~8
-스텝 2가 리뷰 통과하면 command pool → 동기화 → 렌더 루프 순으로 이어서 안내한다.
-(각 스텝은 작게: "만들고 → 실행 확인 → 다음".)
+### Step 3 — command pool + command buffers ✅
+
+GPU에 명령을 기록할 그릇 준비. 아직 기록/제출은 안 함(Step 5) — 만들고 validation 0개면 성공.
+
+**개념**
+- **command pool**: command buffer 메모리의 출처. 특정 **queue family**에 묶이며,
+  거기 기록한 명령은 그 family의 큐에만 submit 가능 → graphics family로 만든다.
+- **command buffer**: 실제 명령(barrier/clear/draw)을 기록하는 버퍼. pool에서 할당,
+  **pool 파괴 시 함께 해제**(개별 free 불필요).
+- pool flag `eResetCommandBuffer`: 매 프레임 command buffer를 **개별 reset** 후 재기록하려고 켠다.
+
+**`mpvk::CommandPool` (최소)**
+```cpp
+class CommandPool {
+public:
+  CommandPool(const Device& device, uint32_t queue_family);
+  ~CommandPool();
+  CommandPool(const CommandPool&)            = delete;
+  CommandPool& operator=(const CommandPool&) = delete;
+
+  vk::CommandPool                handle() const { return pool_; }
+  std::vector<vk::CommandBuffer> allocate(uint32_t count) const;  // ePrimary
+
+private:
+  vk::Device      vk_device_{nullptr};
+  vk::CommandPool pool_{nullptr};
+};
+```
+- 생성자: `vk::CommandPoolCreateInfo{flags=eResetCommandBuffer, queueFamilyIndex=queue_family}`
+  → `device.handle().createCommandPool(...)`. `vk_device_` 저장.
+- `allocate`: `vk::CommandBufferAllocateInfo{pool_, vk::CommandBufferLevel::ePrimary, count}`
+  → `vk_device_.allocateCommandBuffers(...)`.
+- 소멸자: `vk_device_.destroyCommandPool(pool_)` (command buffer 자동 해제).
+
+**main**
+```cpp
+mpvk::CommandPool command_pool{device, gpu.graphics_family()};
+auto command_buffers = command_pool.allocate(2);  // 2 = future frames-in-flight
+LogI("command buffers: {}", command_buffers.size());
+```
+> 여기까지 validation 0개면 Step 3 완료. 기록은 Step 5.
+
+> **실전 노트**
+> - 풀은 **graphics family**로 만든다(렌더 명령은 graphics 큐에 submit). present family
+>   아님 — present는 command buffer를 안 쓴다(`queuePresentKHR`). graphics==present인
+>   GPU(M4=0/0)에선 present로 해도 우연히 통과하지만 개념/이식성상 틀림.
+> - command buffer 개수는 **frames-in-flight(=2)** 로. 이미지 수(3)와 별개 — 이미지
+>   인덱스는 acquire로 따로 받는다.
+> - windowed면 present가 보장되므로(PhysicalDevice가 surface 받고 present 없으면 throw)
+>   main에서 present_family 재확인 불필요. optional 체크는 headless 경로용.
+
+### Step 4 — 동기화 객체 (semaphore + fence) ✅
+
+frames-in-flight(=2)만큼 동기화 3종 세트를 만든다. 아직 렌더 X — 만들고 파괴만, validation 0개.
+
+**개념**
+- **semaphore**: 큐 작업 간 순서(GPU↔GPU). CPU는 상태를 못 본다.
+- **fence**: GPU 작업 완료를 **CPU가** 아는 수단. 이 슬롯을 재사용하기 전 `waitForFences`.
+
+**만들 것 — 인덱싱 기준이 다르다 (중요, validation이 잡음)**
+| 객체 | 인덱스 | 개수 |
+|---|---|---|
+| `imageAvailable` semaphore | frame `f` | kFramesInFlight(2) |
+| `inFlight` fence | frame `f` | kFramesInFlight(2) |
+| `renderFinished` semaphore | **image `img`** | **swapchain 이미지 수(3)** |
+
+- `imageAvailable` — acquire 완료 신호 → submit이 wait. 프레임 슬롯 재사용은 fence로 막음.
+- `inFlight` fence — 이 슬롯의 GPU 작업 종료를 CPU가 대기.
+- `renderFinished` — submit 완료 → present가 wait. **present에 묶이고 present 완료는 CPU가
+  fence로 못 보므로, 프레임(f)이 아니라 이미지(img)마다 따로** 둬야 한다. `render_finished[f]`로
+  하면 `VUID-vkQueueSubmit-pSignalSemaphores-00067` ("may still be in use by VkSwapchainKHR").
+  → submit `setSignalSemaphores(render_finished[img])`, present `setWaitSemaphores(render_finished[img])`.
+
+**구현 (우선 main에 vector로; Step 6에서 per-frame 구조체로 이동)**
+```cpp
+constexpr uint32_t kFramesInFlight = 2;
+auto dev = device.handle();
+
+// per frame-in-flight
+std::vector<vk::Semaphore> image_available;  // (f)
+std::vector<vk::Fence>     in_flight;        // (f)
+for (uint32_t i = 0; i < kFramesInFlight; ++i) {
+  image_available.push_back(dev.createSemaphore({}));
+  in_flight.push_back(dev.createFence(
+      {vk::FenceCreateFlagBits::eSignaled}));  // signaled: first frame won't block
+}
+// per swapchain image (indexed by acquired img, NOT by f)
+std::vector<vk::Semaphore> render_finished;
+for (size_t i = 0; i < swapchain.image_views().size(); ++i) {
+  render_finished.push_back(dev.createSemaphore({}));
+}
+// teardown: destroySemaphore (image_available + render_finished) / destroyFence, each
+```
+> **핵심 함정**: fence를 `eSignaled`로 생성 — 첫 프레임 `waitForFences`가 즉시 통과.
+> 안 그러면 첫 프레임에서 영원히 대기(아무도 signal 안 함).
+> **teardown**: semaphore/fence는 raw 핸들 → `std::vector` 소멸로 파괴 안 됨.
+> device 파괴 전 `device.waitIdle()` 후 `destroySemaphore`/`destroyFence`를 직접 호출.
+
+### Step 5 — 렌더 루프 한 프레임 (acquire → clear → present) ✅
+
+이 샘플의 핵심. 우선 **frame slot 0 고정**으로 한 프레임 완성(순환은 Step 6).
+
+**사전 준비**: `Swapchain`에 이미지 접근자 추가 — clear는 이미지에 직접 하므로.
+```cpp
+const std::vector<vk::Image>& images() const { return images_; }
+```
+
+**draw_frame — A~F 순서로 (slot f = 0)**
+
+루프 위에서 한 번 준비:
+```cpp
+vk::ImageSubresourceRange range{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
+vk::ClearColorValue color{std::array<float, 4>{0.0f, 0.0f, 0.2f, 1.0f}};  // dark blue
+auto vk_device = device.handle();
+```
+
+A. 이 슬롯 이전 작업 대기:
+```cpp
+(void) vk_device.waitForFences(in_flight[f], vk::True, UINT64_MAX);
+```
+B. 다음 이미지 획득 (준비되면 `image_available` signal):
+```cpp
+uint32_t img = vk_device.acquireNextImageKHR(
+    swapchain.handle(), UINT64_MAX, image_available[f], nullptr).value;
+```
+C. fence reset (acquire 성공 후, submit 직전):
+```cpp
+vk_device.resetFences(in_flight[f]);
+```
+D. command buffer 기록 (barrier → clear → barrier):
+```cpp
+auto& cb = cmd_buffers[f];
+cb.reset();
+cb.begin(vk::CommandBufferBeginInfo{});
+
+// UNDEFINED -> TRANSFER_DST (prepare for clear)
+vk::ImageMemoryBarrier to_dst{};
+to_dst.oldLayout           = vk::ImageLayout::eUndefined;
+to_dst.newLayout           = vk::ImageLayout::eTransferDstOptimal;
+to_dst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+to_dst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+to_dst.image               = swapchain.images()[img];
+to_dst.subresourceRange    = range;
+to_dst.dstAccessMask       = vk::AccessFlagBits::eTransferWrite;
+cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe,
+                   vk::PipelineStageFlagBits::eTransfer,
+                   {}, {}, {}, to_dst);
+
+cb.clearColorImage(swapchain.images()[img],
+                   vk::ImageLayout::eTransferDstOptimal, color, range);
+
+// TRANSFER_DST -> PRESENT_SRC (prepare for present)
+vk::ImageMemoryBarrier to_present{};
+to_present.oldLayout           = vk::ImageLayout::eTransferDstOptimal;
+to_present.newLayout           = vk::ImageLayout::ePresentSrcKHR;
+to_present.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+to_present.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+to_present.image               = swapchain.images()[img];
+to_present.subresourceRange    = range;
+to_present.srcAccessMask       = vk::AccessFlagBits::eTransferWrite;
+cb.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+                   vk::PipelineStageFlagBits::eBottomOfPipe,
+                   {}, {}, {}, to_present);
+
+cb.end();
+```
+E. submit (여기서 `in_flight` fence를 signal):
+```cpp
+vk::PipelineStageFlags wait_stage = vk::PipelineStageFlagBits::eTransfer;
+vk::SubmitInfo submit{};
+submit.setWaitSemaphores(image_available[f]);
+submit.setWaitDstStageMask(wait_stage);
+submit.setCommandBuffers(cb);
+submit.setSignalSemaphores(render_finished[img]);   // per image, not f
+device.graphics_queue().submit(submit, in_flight[f]);
+```
+F. present (⚠️ `setSwapchains`에 `handle()` 임시값 직접 금지 → 로컬에 담기):
+```cpp
+vk::SwapchainKHR sc = swapchain.handle();  // named lvalue (NoTemporaries setter)
+
+vk::PresentInfoKHR present{};
+present.setWaitSemaphores(render_finished[img]);   // per image, not f
+present.setSwapchains(sc);
+present.setImageIndices(img);
+(void) device.present_queue().presentKHR(present);
+
+window.poll_events();
+```
+> `set...`는 `ArrayProxyNoTemporaries` → 값 반환(임시)을 거부(dangling 방지). cpp_notes 참고.
+
+한 줄 요약: **A wait → B acquire → C reset → D record(barrier/clear/barrier) → E submit → F present**.
+
+**개념/함정**
+- barrier 2개로 레이아웃 전환: `UNDEFINED→TRANSFER_DST_OPTIMAL`(clear 대상) →
+  `TRANSFER_DST→PRESENT_SRC_KHR`(present). `cb.pipelineBarrier(...)`.
+- submit `waitDstStageMask = eTransfer` — image_available를 transfer 단계에서 대기(clear가 transfer).
+- clear 색: `vk::ClearColorValue{std::array{0.0f, 0.0f, 0.2f, 1.0f}}`.
+- vulkan.hpp `acquireNextImageKHR`/`presentKHR`는 `eErrorOutOfDateKHR`를 **예외로** 던질 수 있음
+  → 지금은 무시, Step 7에서 재생성 처리.
+- `waitForFences`는 `[[nodiscard]]` → `(void)` 또는 결과 확인.
+- **fence reset은 submit 직전에** — `waitForFences` 직후 무조건 reset하면, submit을
+  건너뛰는 경로(out-of-date 등)에서 fence가 unsignaled로 남아 다음 wait가 **데드락**.
+  순서: wait → acquire → **reset** → record → **submit(=fence signal)** → present.
+  submit이 없으면 fence를 다시 signal할 주체가 없어 2번째 프레임부터 hang.
+
+### Step 6 — frames-in-flight 순환
+
+지금은 `f = 0` 고정이라 CPU가 매 프레임 GPU를 기다린다(사실상 frames-in-flight=1).
+슬롯을 순환시켜 CPU가 다음 프레임을 미리 기록하게 한다.
+
+**바꿀 것 (한 줄)**: 프레임 끝에서 슬롯 전진.
+```cpp
+f = (f + 1) % kFramesInFlight;   // present 뒤, 루프 끝
+```
+- `image_available[f]`, `in_flight[f]`, `cmd_buffers[f]` 가 이제 슬롯을 번갈아 사용.
+- `renderFinished[img_idx]`는 그대로 **이미지** 인덱스(f 아님).
+
+**개념/확인**
+- f=0 고정(=1 in flight)이면 wait→submit→wait로 CPU-GPU가 직렬. 2 슬롯이면 슬롯 0 GPU 작업
+  중에 CPU가 슬롯 1 기록 → 겹쳐 돈다.
+- 각 슬롯의 `inFlight` fence가 "이 슬롯 재사용 전 이전 작업 완료"를 보장(A의 waitForFences).
+- 확인: 여전히 파란 화면 + validation 0개. (동작은 같아 보이지만 CPU/GPU 병렬성↑.)
+
+### Step 7 — swapchain 재생성 (out-of-date/리사이즈)
+
+`acquireNextImageKHR`/`presentKHR`가 `eErrorOutOfDateKHR`(또는 suboptimal)를 주면 swapchain을
+다시 만든다. vulkan.hpp는 이를 **예외로 던질 수 있어** 처리 방식 주의.
+- `waitIdle` 후 기존 image_views/swapchain 파괴 → 다시 생성(= `Swapchain` 재생성 or `recreate()`).
+- 최소화(extent 0)면 크기 복구까지 대기.
+- 창 리사이즈 콜백에서 `framebuffer_resized` 플래그를 세워 present 후 재생성하는 방식도 흔함.
+> 상세는 이 스텝 진행 시 채운다.
+
+### Step 8 — 종료 정리 ✅(부분)
+종료 시 `device.waitIdle()` 후 파괴(순서: sync → command pool → image_views → swapchain → device).
+sync 객체(semaphore/fence)는 raw 핸들이라 main에서 직접 destroy(현재 반영됨).
 
 > **미룬 것(나중):** present mode 우선순위 리스트 + `pick` 헬퍼, vsync 토글(생성자 인자),
 > `Settings` 전역/`WindowInfo`/`RenderContext`, Unorm+수동 감마. 필요해질 때 도입.
