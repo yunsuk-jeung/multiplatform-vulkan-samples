@@ -64,6 +64,51 @@ Swapchain::Swapchain(const PhysicalDevice& gpu,
                      const Window&         window,
                      const Surface&        surface)
   : vk_device_{device.handle()} {
+  create(gpu, window, surface);
+}
+
+Swapchain::~Swapchain() {
+  for (auto view : image_views_) {
+    vk_device_.destroyImageView(view);
+  }
+  if (handle_) {
+    vk_device_.destroySwapchainKHR(handle_);
+  }
+}
+
+void Swapchain::recreate(const PhysicalDevice& gpu,
+                         const Window&         window,
+                         const Surface&        surface) {
+  vk_device_.waitIdle();
+
+  for (auto v : image_views_) {
+    vk_device_.destroyImageView(v);
+  }
+
+  if (handle_) {
+    vk_device_.destroySwapchainKHR(handle_);
+  }
+  image_views_.clear();
+  images_.clear();
+  create(gpu, window, surface);
+}
+
+void Swapchain::create_image_views() {
+  image_views_.reserve(images_.size());
+  for (const auto& image : images_) {
+    vk::ImageViewCreateInfo vi;
+    vi.image    = image;
+    vi.viewType = vk::ImageViewType::e2D;
+    vi.format   = format_;
+    vi.subresourceRange =
+      vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
+    image_views_.push_back(vk_device_.createImageView(vi));
+  }
+}
+
+void Swapchain::create(const PhysicalDevice& gpu,
+                       const Window&         window,
+                       const Surface&        surface) {
   // 1) query what the surface supports
   auto caps    = gpu.handle().getSurfaceCapabilitiesKHR(surface.handle());
   auto formats = gpu.handle().getSurfaceFormatsKHR(surface.handle());
@@ -109,28 +154,6 @@ Swapchain::Swapchain(const PhysicalDevice& gpu,
   extent_ = extent;
   images_ = vk_device_.getSwapchainImagesKHR(handle_);
   create_image_views();
-}
-
-void Swapchain::create_image_views() {
-  image_views_.reserve(images_.size());
-  for (const auto& image : images_) {
-    vk::ImageViewCreateInfo vi;
-    vi.image    = image;
-    vi.viewType = vk::ImageViewType::e2D;
-    vi.format   = format_;
-    vi.subresourceRange =
-      vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
-    image_views_.push_back(vk_device_.createImageView(vi));
-  }
-}
-
-Swapchain::~Swapchain() {
-  for (auto view : image_views_) {
-    vk_device_.destroyImageView(view);
-  }
-  if (handle_) {
-    vk_device_.destroySwapchainKHR(handle_);
-  }
 }
 
 }  // namespace mpvk

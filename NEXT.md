@@ -4,29 +4,35 @@
 > 누적 히스토리는 [docs/progress.md](docs/progress.md), 개념은 [docs/concepts.md](docs/concepts.md).
 > 컴퓨터 이동 시: 시작 전 `git pull`, 끝나고 `git push` 해야 동기화됨.
 
-**마지막 갱신:** 2026-07-12
+**마지막 갱신:** 2026-07-19
 
 ## 현재 위치
-- ✅ sample 01 / 02 완료, Instance에 validation layer + debug messenger (spdlog)
-- ✅ **sample 03 (`03_window_surface`) 완료** — window + surface + graphics/present queue,
-  validation 0개. headless(02)/windowed(03)를 `const Surface*`+`optional`로 통합.
+- ✅ sample 01 (instance + physical device 열거)
+- ✅ sample 02 (physical/logical device + queue) — headless
+- ✅ Instance validation layer + debug messenger (spdlog)
+- ✅ sample 03 (window + surface + present queue)
+- ✅ **sample 04 (clear screen)** — swapchain + command pool + 동기화 + 렌더 루프
+  + frames-in-flight(2) + 리사이즈 재생성. 짙은 파랑, validation 0개.
+- mpvk: Instance, PhysicalDevice, Device, Window, Surface, Swapchain, CommandPool
 
 ## 다음에 할 일
-**sample 04 (`04_clear_screen`) 시작** — swapchain으로 화면을 특정 색으로 지우기.
-가장 큰 덩어리(렌더 루프의 뼈대). 새 개념 多:
-- swapchain 생성(surface capabilities/format/present mode 질의 → 선택), swapchain 이미지/뷰
-- command pool / command buffer, 이미지 acquire → clear 기록 → submit → present
-- 동기화: semaphore(GPU-GPU), fence(CPU-GPU), frames-in-flight
-- 시작 규칙: 교육 문서 [docs/samples/04_clear_screen.md](docs/samples/04_clear_screen.md) 먼저(작성됨).
-  첫 스텝은 **swapchain 지원 질의 + `mpvk::Swapchain` 생성**부터 작게.
+**Phase 3 — sample 05 (`05_hello_triangle`) 시작** — 04 렌더 루프 위에 "진짜 그리기".
+- 새 개념: render pass, framebuffer, graphics pipeline(고정+프로그래머블), shader module(SPIR-V),
+  viewport/scissor. 정점은 셰이더에 하드코딩.
+- 새 빌드 요소: GLSL → SPIR-V 컴파일(SDK `glslc`)을 CMake에 통합.
+- mpvk 추가(예정): `RenderPass`, `Framebuffer`, `ShaderModule`, `GraphicsPipeline`.
+- 시작 규칙: 먼저 교육 문서 `docs/samples/05_hello_triangle.md` 작성("start sample 05").
+- 참고: 04는 render pass 없이 `vkCmdClearColorImage`로 지웠음. 05에서 **render pass 도입**
+  (로드맵: 고전 render pass 먼저, dynamic rendering은 이후 별도 샘플).
 
-> 협업 방식: 사용자가 구현, 나는 파일 스켈레톤/리뷰/가이드 + 문서 갱신.
-> 미커밋 변경이 남아 있으면 먼저 커밋(스크립트·window·surface·physical/device·문서).
+## 협업 방식 (고정)
+- 사용자가 구현, 나는 파일 스켈레톤/리뷰/가이드 + **문서 자동 갱신**(시키지 않아도).
+- 코드 주석은 영어, 문서 산문은 한국어.
+- 마일스톤마다 sample doc/concepts/cpp_notes/progress/NEXT 갱신.
 
 ## 이어서 하려면 (환경 복구)
 ```bash
-direnv allow            # SDK 환경 자동 로드 (최초 1회)
+direnv allow
 cmake --build --preset debug
-./build/debug/samples/02_logical_device/02_logical_device
-# validation 콜백 확인: device.cpp에서 setQueuePriorities 잠깐 지웠다 실행 → [vk] 로그 → 원복
+./build/debug/samples/04_clear_screen/04_clear_screen   # 짙은 파란 창
 ```

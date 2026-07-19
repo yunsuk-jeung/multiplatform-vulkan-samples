@@ -21,6 +21,10 @@ class Swapchain {
   Swapchain(const Swapchain&)            = delete;
   Swapchain& operator=(const Swapchain&) = delete;
 
+  void recreate(const PhysicalDevice& gpu,
+                const Window&         window,
+                const Surface&        surface);
+
   vk::SwapchainKHR                  handle() const { return handle_; }
   vk::Format                        format() const { return format_; }
   vk::Extent2D                      extent() const { return extent_; }
@@ -28,7 +32,10 @@ class Swapchain {
   const std::vector<vk::ImageView>& image_views() const { return image_views_; }
 
  private:
-  void create_image_views();  // reused on swapchain recreation (Step 7)
+  void create_image_views();
+  void create(const PhysicalDevice& gpu,
+              const Window&         window,
+              const Surface&        surface);
 
   vk::Device                 vk_device_{nullptr};
   vk::SwapchainKHR           handle_{nullptr};

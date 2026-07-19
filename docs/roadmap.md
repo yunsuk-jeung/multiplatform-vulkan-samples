@@ -44,7 +44,7 @@
   - surface 생성 (Device/Instance에 통합)
 - GLFW를 `third_party`에 추가하는 첫 외부 의존성 단계.
 
-### 🚧 [04_clear_screen](samples/04_clear_screen.md)
+### ✅ [04_clear_screen](samples/04_clear_screen.md)
 - **개념**: 렌더 루프의 뼈대. swapchain 이미지 acquire → command buffer에
   clear 기록 → submit → present. semaphore/fence로 CPU-GPU, GPU-GPU 동기화.
   frames-in-flight 개념.

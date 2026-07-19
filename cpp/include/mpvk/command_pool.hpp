@@ -5,8 +5,6 @@
 
 #include <vulkan/vulkan.hpp>
 
-#include "vulkan/vulkan.hpp"
-
 namespace mpvk {
 
 class Device;
@@ -15,8 +13,8 @@ class CommandPool {
   explicit CommandPool(const Device& device, uint32_t queue_family);
   ~CommandPool();
 
-  CommandPool(const CommandPool&)           = delete;
-  CommandPool& operator=(const CommandPool) = delete;
+  CommandPool(const CommandPool&)            = delete;
+  CommandPool& operator=(const CommandPool&) = delete;
 
   vk::CommandPool                handle() const { return handle_; }
   std::vector<vk::CommandBuffer> allocate(uint32_t count) const;

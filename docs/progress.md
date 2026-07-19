@@ -5,6 +5,25 @@
 
 ---
 
+## 2026-07-19 — sample 04 완료: clear screen (swapchain + 렌더 루프)
+
+- `mpvk::Swapchain`(질의→선택→생성→이미지/뷰, `create()`/`recreate()`),
+  `mpvk::CommandPool`(graphics family, allocate), 동기화(sem/fence), 렌더 루프.
+- 한 프레임: waitFence → acquire → reset → barrier(UNDEFINED→TRANSFER_DST) →
+  clearColorImage(짙은 파랑) → barrier(→PRESENT_SRC) → submit → present.
+  frames-in-flight=2 순환, 종료 시 waitIdle+destroy. 렌더 중 validation 0개.
+- 배운 것 / 함정:
+  - `VK_KHR_swapchain`은 **device extension** → present family 있을 때 Device에서 활성화.
+  - 동기화 인덱싱: `imageAvailable`/`inFlight`=frame(f), `renderFinished`=image(img).
+    (VUID-...00067 semaphore 재사용 회피.)
+  - frames-in-flight(2) ≠ swapchain 이미지 수(3): 다른 축.
+  - fence는 `eSignaled`로 생성(첫 프레임), reset은 submit 직전(데드락 방지).
+  - 재생성: vulkan.hpp는 out-of-date를 예외로 던짐. **macOS/MoltenVK는 리사이즈 시
+    out-of-date를 안 줘서** GLFW `framebuffer_size_callback` 플래그가 사실상 유일한 트리거.
+  - cpp_notes: VkResult 0=성공, ArrayProxyNoTemporaries(임시 금지), FlagBits vs Flags.
+- **다음**: Phase 3 — sample 05 (hello triangle): render pass, framebuffer, graphics
+  pipeline, shader(SPIR-V).
+
 ## 2026-07-12 — sample 03 완료: window + surface + present queue
 
 - `mpvk::Surface`(VkSurfaceKHR RAII, instance보다 먼저 파괴), Instance에 surface

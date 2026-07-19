@@ -19,13 +19,18 @@ class Window {
 
   bool should_close() const;
   void poll_events() const;
+  bool was_resized() const { return framebuffer_resized_; }
+  void reset_resized() { framebuffer_resized_ = false; }
 
   vk::Extent2D framebuffer_size() const;
 
   GLFWwindow* handle() const { return handle_; }
 
  private:
+  static void on_framebuffer_resize(GLFWwindow* win, int w, int h);
+
   GLFWwindow* handle_{nullptr};
+  bool        framebuffer_resized_{false};
 };
 
 }  // namespace mpvk

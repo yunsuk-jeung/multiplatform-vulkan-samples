@@ -57,12 +57,18 @@ int main() {
     auto vk_device = device.handle();
     (void)vk_device.waitForFences(in_flight[f], vk::True, UINT64_MAX);
 
-    uint32_t img_idx = vk_device
-                         .acquireNextImageKHR(swapchain.handle(),
-                                              UINT64_MAX,
-                                              image_available[f],
-                                              nullptr)
-                         .value;
+    uint32_t img_idx;
+    try {
+      img_idx = vk_device
+                  .acquireNextImageKHR(swapchain.handle(),
+                                       UINT64_MAX,
+                                       image_available[f],
+                                       nullptr)
+                  .value;
+    } catch (const vk::OutOfDateKHRError&) {
+      swapchain.recreate(gpu, window, surface);
+      continue;
+    }
 
     vk_device.resetFences(in_flight[f]);
 
@@ -119,7 +125,19 @@ int main() {
     present.setSwapchains(sc);
     present.setImageIndices(img_idx);
 
-    (void)device.present_queue().presentKHR(present);
+    vk::Result pr = vk::Result::eSuccess;
+    try {
+      pr = device.present_queue().presentKHR(present);
+    } catch (const vk::OutOfDateKHRError&) {
+      pr = vk::Result::eErrorOutOfDateKHR;
+    }
+
+    if (pr == vk::Result::eErrorOutOfDateKHR || pr == vk::Result::eSuboptimalKHR
+        || window.was_resized()) {
+      window.reset_resized();
+      swapchain.recreate(gpu, window, surface);
+    }
+
     window.poll_events();
 
     f = (f + 1) % kFramesInFlight;

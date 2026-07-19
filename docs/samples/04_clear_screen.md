@@ -1,8 +1,8 @@
 # 04_clear_screen
 
-> Phase 2 · 상태: 🚧 진행 중
-> (swapchain+뷰 ✅ / command pool ✅ / 동기화 ✅ / 렌더 루프 ✅ / frames-in-flight ⬜ / 재생성 ⬜)
-> 짙은 파란 화면 렌더, 렌더 루프 중 validation 0개 확인(slot f=0 고정).
+> Phase 2 · 상태: ✅ 완료
+> (swapchain+뷰 ✅ / command pool ✅ / 동기화 ✅ / 렌더 루프 ✅ / frames-in-flight ✅ / 재생성 ✅)
+> 짙은 파란 화면 렌더, 렌더 루프 중 validation 0개. frames-in-flight=2 순환, 리사이즈 재생성(macOS는 GLFW 콜백 플래그로 트리거).
 > 참고: swapchain은 device extension `VK_KHR_swapchain` 필요 → present family 있을 때 Device에서 활성화.
 
 ## Goal
@@ -149,9 +149,9 @@ presentKHR(wait=renderFinished, imageIndex)
 4. ✅ **동기화 객체** — `imageAvailable`·`inFlight`는 frame(f), `renderFinished`는 image(img).
 5. ✅ **렌더 루프 한 프레임** — acquire → reset → barrier/clear/barrier → submit → present.
    짙은 파랑, validation 0개(f=0 고정). 종료 시 `waitIdle` + sync destroy.
-6. 🚧 **frames-in-flight** 로 N개 슬롯 순환.
-7. **swapchain 재생성** — out-of-date/suboptimal + 리사이즈 처리.
-8. 종료 시 `device.waitIdle()` 후 파괴, validation 0개 확인.
+6. ✅ **frames-in-flight** 로 N개 슬롯 순환(`f = (f+1) % kFramesInFlight`).
+7. ✅ **swapchain 재생성** — out-of-date/suboptimal(예외/반환) + GLFW 리사이즈 콜백 플래그.
+8. ✅ 종료 시 `device.waitIdle()` 후 파괴, validation 0개 확인.
 
 ## 구현 시 주의점 (common mistakes)
 
@@ -493,14 +493,108 @@ f = (f + 1) % kFramesInFlight;   // present 뒤, 루프 끝
 - 각 슬롯의 `inFlight` fence가 "이 슬롯 재사용 전 이전 작업 완료"를 보장(A의 waitForFences).
 - 확인: 여전히 파란 화면 + validation 0개. (동작은 같아 보이지만 CPU/GPU 병렬성↑.)
 
-### Step 7 — swapchain 재생성 (out-of-date/리사이즈)
+### Step 7 — swapchain 재생성 (out-of-date/리사이즈) ✅
 
-`acquireNextImageKHR`/`presentKHR`가 `eErrorOutOfDateKHR`(또는 suboptimal)를 주면 swapchain을
-다시 만든다. vulkan.hpp는 이를 **예외로 던질 수 있어** 처리 방식 주의.
-- `waitIdle` 후 기존 image_views/swapchain 파괴 → 다시 생성(= `Swapchain` 재생성 or `recreate()`).
-- 최소화(extent 0)면 크기 복구까지 대기.
-- 창 리사이즈 콜백에서 `framebuffer_resized` 플래그를 세워 present 후 재생성하는 방식도 흔함.
-> 상세는 이 스텝 진행 시 채운다.
+창 리사이즈 시 swapchain이 창 크기와 안 맞으면 `acquireNextImageKHR`/`presentKHR`가
+`eErrorOutOfDateKHR`(또는 `eSuboptimalKHR`)를 준다. 이때 swapchain(+image views)을 다시 만든다.
+
+**① Swapchain: 생성 로직을 재사용 가능하게 + `recreate()`**
+지금 생성 로직이 생성자 몸통에 있으니, private `create(...)`로 빼서 ctor와 recreate가 공유:
+```cpp
+// swapchain.hpp
+void recreate(const PhysicalDevice& gpu, const Window& window, const Surface& surface);
+private:
+  void create(const PhysicalDevice& gpu, const Window& window, const Surface& surface);
+```
+```cpp
+// swapchain.cpp
+Swapchain::Swapchain(...) : vk_device_{device.handle()} { create(gpu, window, surface); }
+
+void Swapchain::recreate(const PhysicalDevice& gpu, const Window& window,
+                         const Surface& surface) {
+  vk_device_.waitIdle();
+  for (auto v : image_views_) vk_device_.destroyImageView(v);
+  if (handle_) vk_device_.destroySwapchainKHR(handle_);
+  image_views_.clear();
+  images_.clear();
+  create(gpu, window, surface);   // 선택/생성/이미지/뷰 다시
+}
+```
+> `create()`는 기존 생성자 몸통(질의→선택→create info→createSwapchainKHR→이미지→
+> `create_image_views()`)을 그대로 옮긴 것.
+
+**② main: 감지 → 재생성 → 프레임 skip**
+vulkan.hpp는 `eErrorOutOfDateKHR`를 **예외(`vk::OutOfDateKHRError`)로 던진다**.
+`eSuboptimalKHR`는 성공 코드라 반환된다. 그래서:
+```cpp
+// acquire: out-of-date면 재생성하고 이 프레임 건너뜀
+uint32_t img_idx;
+try {
+  img_idx = vk_device.acquireNextImageKHR(
+      swapchain.handle(), UINT64_MAX, image_available[f], nullptr).value;
+} catch (const vk::OutOfDateKHRError&) {
+  swapchain.recreate(gpu, window, surface);
+  continue;                     // fence는 reset 전이라 여전히 signaled → OK
+}
+// ... reset → record → submit ...
+
+// present: out-of-date/suboptimal이면 재생성
+vk::Result pr = vk::Result::eSuccess;
+try {
+  pr = device.present_queue().presentKHR(present);
+} catch (const vk::OutOfDateKHRError&) {
+  pr = vk::Result::eErrorOutOfDateKHR;
+}
+if (pr == vk::Result::eErrorOutOfDateKHR || pr == vk::Result::eSuboptimalKHR
+    || window.was_resized()) {           // ← macOS는 이 플래그가 유일한 트리거
+  window.reset_resized();
+  swapchain.recreate(gpu, window, surface);
+}
+```
+
+**③ Window: 리사이즈 콜백 + 플래그 (macOS 필수 트리거)**
+GLFW 콜백은 C 함수라 인스턴스에 접근하려면 **user pointer**를 쓴다.
+```cpp
+// window.hpp
+bool was_resized() const { return framebuffer_resized_; }
+void reset_resized() { framebuffer_resized_ = false; }
+private:
+  static void on_framebuffer_resize(GLFWwindow* w, int width, int height);
+  bool framebuffer_resized_{false};
+```
+```cpp
+// window.cpp — 생성자에서 glfwCreateWindow 뒤
+glfwSetWindowUserPointer(handle_, this);                  // 콜백에서 Window* 찾으려고
+glfwSetFramebufferSizeCallback(handle_, on_framebuffer_resize);
+
+// static 콜백: user pointer로 this를 찾아 플래그만 세운다
+void Window::on_framebuffer_resize(GLFWwindow* w, int, int) {
+  auto* self = static_cast<Window*>(glfwGetWindowUserPointer(w));
+  self->framebuffer_resized_ = true;
+}
+```
+- **static 멤버 함수**라 C 함수 포인터로 넘길 수 있고(=this 없음), Window의 private 멤버 접근 가능.
+- 콜백은 `glfwPollEvents()` 중 **메인 스레드에서** 불리므로 별도 동기화 불필요.
+- 헤더는 `struct GLFWwindow;` 전방 선언이라 `GLFWwindow*` 파라미터 OK.
+
+main에선 위 ②의 present 후 `window.was_resized()`를 함께 검사(플래그 확인 후 `reset_resized()`).
+
+**함정/주의**
+- **fence 순서 덕에 안전**: acquire 실패는 `resetFences` 전이라 fence가 signaled로 남음 →
+  다음 프레임 wait 즉시 통과(데드락 없음). 그래서 acquire out-of-date는 `continue`로 skip.
+- **acquire의 suboptimal은 성공** → 그 프레임은 그냥 그리고, present 쪽에서 재생성 판단.
+- **최소화(minimize)**: `framebuffer_size()`가 0×0이면 swapchain 생성 불가 → 크기가
+  0이 아닐 때까지 `glfwWaitEvents()`로 대기 후 재생성.
+- **이미지 수 변동 가능**: 재생성 시 이미지 수가 바뀌면 `render_finished`(이미지당) 크기도
+  맞춰야 함. 리사이즈는 보통 같은 수라 이 샘플은 단순화(같다고 가정) — 바뀌면 재생성.
+- **macOS/MoltenVK 특이사항 (중요)**: 리사이즈해도 `eErrorOutOfDateKHR`가 **잘 안 뜬다**.
+  MoltenVK가 Metal(CAMetalLayer) drawable을 자동으로 새 크기에 맞추고, 단색 clear라 시각적
+  차이도 없어서다. → **out-of-date에만 의존하면 mac에선 재생성이 트리거되지 않는다.**
+  - Linux X11/Wayland·Windows: 리사이즈 시 out-of-date/suboptimal이 거의 항상 발생.
+  - macOS: **`glfwSetFramebufferSizeCallback`으로 `resized` 플래그**를 세워 present 후
+    재생성하는 방식이 사실상 필수(콜백이 유일한 신뢰 트리거).
+  - "리사이즈해도 안 깨진다"는 잘 돼서가 아니라 MoltenVK 자동적응 + 단색이라 안 보이는 것.
+    recreate가 실제로 불리는지는 로그로 확인.
 
 ### Step 8 — 종료 정리 ✅(부분)
 종료 시 `device.waitIdle()` 후 파괴(순서: sync → command pool → image_views → swapchain → device).

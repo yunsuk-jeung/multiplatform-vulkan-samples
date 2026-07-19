@@ -27,6 +27,9 @@ Window::Window(int w, int h, const char* title) {
     glfwTerminate();
     throw std::runtime_error("glfw create window failed");
   }
+
+  glfwSetWindowUserPointer(handle_, this);
+  glfwSetFramebufferSizeCallback(handle_, on_framebuffer_resize);
 }
 
 Window::~Window() {
@@ -50,4 +53,8 @@ vk::Extent2D Window::framebuffer_size() const {
   return {static_cast<uint32_t>(w), static_cast<uint32_t>(h)};
 }
 
+void Window::on_framebuffer_resize(GLFWwindow* w, int, int) {
+  static_cast<Window*>(glfwGetWindowUserPointer(w))->framebuffer_resized_ =
+    true;
+}
 }  // namespace mpvk

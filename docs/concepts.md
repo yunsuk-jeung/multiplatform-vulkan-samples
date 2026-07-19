@@ -88,6 +88,27 @@ color image view를 만들어 렌더 타깃으로 쓴다. 필드 상세는 sampl
 buffer는 f로, `renderFinished`는 img로 인덱싱.
 - 처음 등장: [04_clear_screen](samples/04_clear_screen.md)
 
+### Swapchain (`VkSwapchainKHR`)
+surface에 대응하는 present용 이미지 링. capabilities/format/present mode를 질의해 골라
+만든다. 이미지는 `getSwapchainImagesKHR`로 받고(소유는 swapchain), device extension
+`VK_KHR_swapchain` 필요. 리사이즈 시 재생성.
+- 처음 등장: [04_clear_screen](samples/04_clear_screen.md)
+
+### Command pool / command buffer
+GPU는 command buffer에 명령을 기록해 queue에 submit한다. buffer는 특정 queue family에
+묶인 command pool에서 할당하고, pool 파괴 시 함께 해제된다.
+- 처음 등장: [04_clear_screen](samples/04_clear_screen.md)
+
+### Image layout & pipeline barrier
+이미지는 용도별 레이아웃(undefined/transfer-dst/present-src...)을 갖고, `pipelineBarrier`로
+전환한다. render pass 없이 clear할 땐 `UNDEFINED→TRANSFER_DST→PRESENT_SRC`로 직접 전환.
+- 처음 등장: [04_clear_screen](samples/04_clear_screen.md)
+
+### 동기화: semaphore & fence, 렌더 루프
+semaphore=큐 작업 간 순서(GPU↔GPU), fence=CPU가 GPU 완료 대기. 한 프레임:
+waitFence → acquire → reset → record → submit(signal renderFinished+fence) → present.
+- 처음 등장: [04_clear_screen](samples/04_clear_screen.md)
+
 ### GLFW 통합 (윈도잉 의존성)
 첫 외부 윈도잉 라이브러리. 창 생성/입력/플랫폼 차이를 흡수하고
 `glfwCreateWindowSurface`로 surface 생성을 감춘다. `GLFW_NO_API`로 OpenGL 컨텍스트를
