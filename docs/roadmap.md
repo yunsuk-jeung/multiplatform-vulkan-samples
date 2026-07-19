@@ -59,7 +59,7 @@
 
 ## Phase 3 — 첫 삼각형 (Hello Triangle)
 
-### ⬜ 05_hello_triangle
+### 🚧 [05_hello_triangle](samples/05_hello_triangle.md)
 - **개념**: render pass, framebuffer, graphics pipeline(고정+프로그래머블 스테이지),
   shader module(SPIR-V), viewport/scissor. 정점은 셰이더에 하드코딩.
 - **mpvk 추가**:
